@@ -1,0 +1,15 @@
+for i in {2,4,5,8,9,12}
+do
+ ssh root@172.18.1.$i killall LSV4
+ sleep 5
+ scp LSV4S1 172.18.1.$i:LSV4
+ ssh root@172.18.1.$i /sbin/reboot
+done
+for i in {34,43,44,49,58,69,83,84,85,70,151,60,59,144,135,157,136,145,152,146,137,126,36,35,122,123,124,125,100,101,102,103,88,94,93,92,110,111,112,113}
+do
+ ssh root@172.18.1.$i killall LSV4
+ sleep 5
+ scp LSV4 172.18.1.$i:
+ ssh root@172.18.1.$i /sbin/reboot
+done
+

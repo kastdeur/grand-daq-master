@@ -1,0 +1,28 @@
+#!/bin/bash
+runnr=$1
+fragout=$2
+fragmin=$3
+fragmax=$4
+heraldfile=$5
+#filebase=../AERA/trunk_ct_121111/Adaq/data/ad
+filebase=/Users/timmer/Auger/data1/AD/ad
+#filebase=/home/daq/data/new/AD/ad
+for (( i=$fragmin ; i <= $fragmax ; i++ ))
+do
+  if (( "$i" < "10" )) 
+  then
+    /Users/timmer/Auger/AERA/Charles/evcopy/evcopyv4 $filebase$runnr.f000$i sd$runnr.f000$fragout $heraldfile /dev/null
+  else 
+    if (( "$i" < "100" )) 
+    then
+      /Users/timmer/Auger/AERA/Charles/evcopy/evcopyv4 $filebase$runnr.f00$i sd$runnr.f000$fragout $heraldfile /dev/null
+    else
+      if (( "$i" < "1000" )) 
+      then
+        /Users/timmer/Auger/AERA/Charles/evcopy/evcopyv4 $filebase$runnr.f0$i sd$runnr.f000$fragout $heraldfile /dev/null
+      else
+        /Users/timmer/Auger/AERA/Charles/evcopy/evcopyv4 $filebase$runnr.f$i sd$runnr.f000$fragout $heraldfile /dev/null
+      fi
+    fi
+  fi
+done

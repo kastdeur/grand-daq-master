@@ -1,0 +1,5 @@
+rsync -av /media/data/logfiles /media/datacopy/
+rsync -av /media/data/MON /media/datacopy/
+rsync -av /media/data/MD /media/datacopy/
+rsync -av /media/data/AD /media/datacopy/
+rsync -av /media/data/TD /media/datacopy/
