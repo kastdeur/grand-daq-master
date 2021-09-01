@@ -219,7 +219,7 @@ void eb_getdata(){
         }
         inew = 1;
         msg = (AMSG *)(&(shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_read)+1]));
-        printf("EB getdata: loop over input. TAG = %d\n",msg->tag);
+        //printf("EB getdata: loop over input. TAG = %d\n",msg->tag);
         if(msg->tag == DU_EVENT){
             DUinfo = (EVENTBODY *)msg->body;
             if(i_DUbuffer < NDU) memcpy((void *)&DUbuffer[i_DUbuffer],(void *)DUinfo,2*DUinfo->length);
@@ -289,7 +289,7 @@ void eb_write_events(){
             evhdr.length += 2*DUn->length;
             evhdr.type |= DUn->trigger_flag;
         }else{
-            printf("EB: Found event %d with %d DU Length = %d (%d, %d %d)\n",evhdr.t3_id,evhdr.DU_count,evhdr.length,i_DUbuffer,DUn->GPSseconds,DUinfo->GPSseconds);
+            //printf("EB: Found event %d with %d DU Length = %d (%d, %d %d)\n",evhdr.t3_id,evhdr.DU_count,evhdr.length,i_DUbuffer,DUn->GPSseconds,DUinfo->GPSseconds);
             eb_fhdr.last_event_id = evhdr.event_id;
             eb_fhdr.last_event_time = evhdr.seconds;
             if(fpout == NULL) {

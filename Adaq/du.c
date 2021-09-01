@@ -125,7 +125,7 @@ int set_socketoptions(int sock)
   timeout.tv_sec = 0;
   if(setsockopt (sock,SOL_SOCKET, SO_RCVTIMEO,&timeout,
                  (socklen_t)(sizeof (struct timeval)) )<0) return(ERROR);
-  timeout.tv_usec = 20000;//was 100000
+  timeout.tv_usec = 10000;//was 100000
   timeout.tv_sec = 0;
   if(setsockopt (sock,SOL_SOCKET, SO_SNDTIMEO,&timeout,
                  (socklen_t)(sizeof (struct timeval))  )<0) return(ERROR);
@@ -178,6 +178,7 @@ void du_connect()
   gettimeofday(&tnow,&tzone);
   for(i=0;i<tot_du;i++){ // loop over all stations
     if(DUinfo[i].DUsock >= 0) continue; // nothing needs to be done
+    //printf("Trying to connect to socket %d\n",DUinfo[i].DUport);
     //1. Create the socket
     DUinfo[i].DUsock =  socket ( PF_INET, SOCK_STREAM, 0 );
     DUinfo[i].LSTconnect = tnow.tv_sec;
@@ -363,7 +364,10 @@ uint16_t du_read_initfile(int ls,uint16_t *bf)
   
   sprintf(fname,"conf/DU/grand_%03d",ls);
   fp = fopen(fname,"r");
-  if(fp == NULL) return(rcode);
+  if(fp == NULL) {
+    printf("There is no configuration file for DU %d\n",ls);
+    return(rcode);
+  }
   while(fgets(line,199,fp) == line){
     if(line[0]==0 || line[0] == '#') continue;
     for(i=0;i<strlen(line);i+=7){

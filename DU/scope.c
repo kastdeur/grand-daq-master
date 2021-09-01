@@ -604,6 +604,7 @@ int scope_fake_event(int32_t ioff)
     }else
         eventbuf[next_write].t2_nanoseconds += 1000*(((double)(random())/(double)MAXRAND)); //add random ns
     eventbuf[next_write].t3_nanoseconds =     eventbuf[next_write].t2_nanoseconds;
+  eventbuf[next_write].t3calc =     1;
     eventbuf[next_write].CTD = eventbuf[next_write].t2_nanoseconds/5; //clock tick
     eventbuf[next_write].CTP = 200000000; //clock freq.
     eventbuf[next_write].quant1 = 0.;

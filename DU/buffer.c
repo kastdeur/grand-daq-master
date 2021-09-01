@@ -103,14 +103,15 @@ int buffer_to_t3(unsigned short event_nr, unsigned short isec,unsigned int ssec,
     printf("Did not find the requested buffer isec %u ssec %u (0x%x)\n", isec, ssec,ssec);
     return(0);
   }
+  //printf("Copy the buffer to the output %d\n",event_nr);
   memcpy(&(t3_buffer[t3_wait]),&(eventbuf[ibuf]),sizeof(EV_DATA)); // found it, now copy the data
   eventbuf[ibuf].ts_seconds = 0;                                   // reset the time, so this buffer is never used
   t3_buffer[t3_wait].event_nr = event_nr;                          // put the event number to the data
   t3_buffer[t3_wait].trig_flag = trflag;                          // put the trigger flag
 
-  if(t3_buffer[t3_wait].t3calc == 1) {
-    //printf("T3 nsec has been calculated\n");
-  }
+  //if(t3_buffer[t3_wait].t3calc == 1) {
+  //  printf("T3 nsec has been calculated\n");
+  //}
   prevgps = evgps-1;
   if(prevgps<0)prevgps = GPSSIZE-1;
   //if(t3_buffer[t3_wait].ts_seconds <(gpsbuf[prevgps].ts_seconds-5)) reset_socket();
@@ -260,7 +261,7 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
     return(0);                                                           // event does not fit
   }
   if(!t3_buffer[t3_send].t3calc) printf("Timing of buffer %d still needs to be done\n",t3_send);
-  printf("Send %d Wait %d\n",t3_send,t3_wait);
+  //printf("Send %d Wait %d\n",t3_send,t3_wait);
   if((t3_send != t3_wait)           // events to send, used to be a while loop
      && (len < (bfsize-bffil-(5+MIN_EVHEADER_LENGTH)))      // fit in buffer
      && (t3_buffer[t3_send].t3calc == 1)

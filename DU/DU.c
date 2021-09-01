@@ -145,10 +145,10 @@ int set_socketoptions(int sock)
     option = 1048576;
     if(setsockopt (sock,SOL_SOCKET, SO_SNDBUF,&option,sizeof (int) )<0) return(-1);
     if(setsockopt (sock,SOL_SOCKET, SO_RCVBUF,&option,sizeof (int) )<0) return(-1);
-    timeout.tv_usec = 100000;
+    timeout.tv_usec = 10000;
     timeout.tv_sec = 0;
     if(setsockopt (sock,SOL_SOCKET, SO_RCVTIMEO,&timeout,sizeof (struct timeval) )<0) return(-1);
-    timeout.tv_usec = 100000;
+    timeout.tv_usec = 10000;
     timeout.tv_sec = 0;
     if(setsockopt (sock,SOL_SOCKET, SO_SNDTIMEO,&timeout,sizeof (struct timeval) )<0) return(-1);
     return(0);
@@ -200,7 +200,9 @@ int make_server_connection(int port)
   DU_comms = -1;
   ntry = 0;
   while(DU_comms < 0 && ntry <100000){
+    printf("Trying %d\n",ntry);
     DU_comms = accept(DU_socket, (struct sockaddr*)&DU_address,&DU_alength);
+    printf("After accept\n");
     if(DU_comms <0){
       if(errno != EWOULDBLOCK && errno != EAGAIN) return(-1); // an error if socket is not non-blocking
     }else{
@@ -248,6 +250,7 @@ int check_server_data()
   unsigned char *bf = (unsigned char *)DU_input;
   struct timeval timeout;
   
+  //printf("Checking Server data\n");
   timeout.tv_sec = 0;
   timeout.tv_usec=10;
   if(DU_comms>=0){
@@ -365,7 +368,7 @@ int check_server_data()
         if (msg_len == AMSG_OFFSET_BODY + 3 + 1) {
           getevt = (du_geteventbody *)&msg_start[AMSG_OFFSET_BODY];
           ssec = (getevt->NS3+(getevt->NS2<<8)+(getevt->NS1<<16));
-          printf("Requesting Event %d %d %d\n",getevt->event_nr,getevt->sec,ssec);
+          //printf("Requesting Event %d %d %d\n",getevt->event_nr,getevt->sec,ssec);
           trflag = 0;
           if(msg_tag == DU_GET_EXT_SD_EVENT)trflag = TRIGGER_T3_EXT_SD;
           if(msg_tag == DU_GET_EXT_GUI_EVENT)trflag = TRIGGER_T3_EXT_GUI;
@@ -517,6 +520,7 @@ int send_t3_event()
   }
   buffer_add_t3(&(DU_output[1]),MAX_OUT_MSG-3,station_id);
   if(DU_output[1] == 0) return(0); // nothing to do
+  //printf("Sending T3 event\n");
   DU_output[0] = DU_output[1]+2;
   DU_output[DU_output[0]-1] = GRND1;
   DU_output[DU_output[0]] = GRND2;
@@ -716,15 +720,17 @@ void du_socket_main(int argc,char **argv)
         if(du_port == -1) du_port = DU_PORT;
     }
 #endif
-  printf("Opening Connection\n");
+  printf("Opening Connection %d\n",du_port);
   if(make_server_connection(du_port) < 0) {  // connect to DAQ
     printf("Cannot open sockets\n");
     exit(-1);
   }
+  printf("Connection opened\n");
   gettimeofday(&tprev,&tzone);
   tcontact.tv_sec = tprev.tv_sec;
   tcontact.tv_usec = tprev.tv_usec;
   while(stop_process == 0){
+    //printf("In the main loop\n");
     gettimeofday(&tnow,&tzone);
     tdif = (float)(tnow.tv_sec-tprev.tv_sec)+(float)( tnow.tv_usec-tprev.tv_usec)/1000000.;
     if(tdif>=0.3 || prev_msg == 1 ){                          // every 0.3 seconds, this is really only needed for phase2
