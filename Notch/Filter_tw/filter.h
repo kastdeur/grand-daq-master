@@ -2,8 +2,8 @@
 
 // Thei: choose between 12 bit or 14 bit ADC
 
-//#define ADC12 1
-#define ADC14 1
+#define ADC12 1
+//#define ADC14 1
 
 #ifdef ADC12
 #define W_INPUT 12  //14b: adcbits:    14   //12b: 12

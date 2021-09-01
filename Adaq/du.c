@@ -17,6 +17,7 @@
 #include <sys/time.h>
 #include "Adaq.h"
 #include "amsg.h"
+#include "filter.h"
 
 extern int running;
 extern int errno;
@@ -351,27 +352,66 @@ void du_send(uint16_t *bf,int du)
 
 /*!
  \func uint16_t du_read_initfile(int ls,uint16_t *bf)
- \brief reads the configuration file
+ \brief reads the configuration file. Also calculates the filter parameters from the input file!
  note: does not check the size of the buffer (bf)!
  */
 uint16_t du_read_initfile(int ls,uint16_t *bf)
 {
+#define XTRA_PIPE 4
   uint16_t rcode = 0;
   FILE *fp;
   char line[200];
   char fname[200];
+  int axi,reg,val;
   int i;
+  double freq,width;
+  int a[10],b[10],aLen,bLen;
   
   sprintf(fname,"conf/DU/grand_%03d",ls);
   fp = fopen(fname,"r");
   if(fp == NULL) {
-    printf("There is no configuration file for DU %d\n",ls);
-    return(rcode);
+    fp = fopen("conf/DU.conf","r");
+    if(fp == NULL) {
+      printf("There is no configuration file for DU %d\n",ls);
+      return(rcode);
+    }
   }
   while(fgets(line,199,fp) == line){
     if(line[0]==0 || line[0] == '#') continue;
-    for(i=0;i<strlen(line);i+=7){
-      if(sscanf(&(line[i]),"0x%04hx",&(bf[rcode]))>0) rcode++;
+    if(sscanf(line,"%d 0x%x 0x%x",&axi,&reg,&val) == 3){
+      if(axi < 32){ // normal registers
+        bf[rcode++] = axi;
+        bf[rcode++] = reg;
+        bf[rcode++] = val;
+      }else{// filter
+        if(sscanf(line,"%d 0x%x %lg %lg",&axi,&reg,&freq,&width) == 4){
+          getNotchFilterCoeffs(freq/SAMP_FREQ, width, XTRA_PIPE, a, b, &aLen, &bLen);
+          bf[rcode++] = axi;
+          bf[rcode++] = reg;
+          bf[rcode++] = a[1]&0xffff;
+          bf[rcode++] = axi;
+          bf[rcode++] = reg+2;
+          bf[rcode++] = a[2]&0xffff;
+          bf[rcode++] = axi+1;
+          bf[rcode++] = reg+4;
+          bf[rcode++] = b[1]&0xffff;
+          bf[rcode++] = axi+1;
+          bf[rcode++] = reg+6;
+          bf[rcode++] = b[2]&0xffff;
+          bf[rcode++] = axi+2;
+          bf[rcode++] = reg+8;
+          bf[rcode++] = b[3]&0xffff;
+          bf[rcode++] = axi+2;
+          bf[rcode++] = reg+10;
+          bf[rcode++] = b[4]&0xffff;
+          bf[rcode++] = axi+3;
+          bf[rcode++] = reg+12;
+          bf[rcode++] = b[5]&0xffff;
+          bf[rcode++] = axi+3;
+          bf[rcode++] = reg+14;
+          bf[rcode++] = b[6]&0xffff;
+        }
+      }
     }
   }
   fclose(fp);
