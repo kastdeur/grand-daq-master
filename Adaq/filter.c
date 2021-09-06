@@ -89,13 +89,13 @@ int getNotchFilterCoeffs(double nu_s, double r, int xtraPipe, int *a, int *b, in
     for (i = 0; i < *bLen; i++)
         b[i] = float2fixed(b_dbl[i], W_INT, W_FRAC);    
      
-    printf("    A\t\t\tB\n");
-    printf("0    \t\t\t%.3f (0x%03x)\n", b_dbl[0], b[0] & 0xfff);
-    printf("1   %.3f (0x%03x)\t%.3f (0x%03x)\n", a_dbl[1], a[1] & 0xfff, b_dbl[1], b[1] & 0xfff);
-    printf("2   %.3f (0x%03x)\t%.3f (0x%03x)\n", a_dbl[2], a[2] & 0xfff, b_dbl[2], b[2] & 0xfff);
-    for (i = *aLen; i < *bLen; i++)
-        printf("%d    \t\t\t%.3f (0x%03x)\n", i, b_dbl[i], b[i] & 0xfff);
-    printf("\n");
+    //printf("    A\t\t\tB\n");
+    //printf("0    \t\t\t%.3f (0x%03x)\n", b_dbl[0], b[0] & 0xfff);
+    //printf("1   %.3f (0x%03x)\t%.3f (0x%03x)\n", a_dbl[1], a[1] & 0xfff, b_dbl[1], b[1] & 0xfff);
+    //printf("2   %.3f (0x%03x)\t%.3f (0x%03x)\n", a_dbl[2], a[2] & 0xfff, b_dbl[2], b[2] & 0xfff);
+    //for (i = *aLen; i < *bLen; i++)
+    //    printf("%d    \t\t\t%.3f (0x%03x)\n", i, b_dbl[i], b[i] & 0xfff);
+    //printf("\n");
     
     return 0;
 }

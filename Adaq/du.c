@@ -19,6 +19,7 @@
 #include "amsg.h"
 #include "filter.h"
 
+#define Reg_Rate 0x1E0
 extern int running;
 extern int errno;
 
@@ -379,42 +380,43 @@ uint16_t du_read_initfile(int ls,uint16_t *bf)
   while(fgets(line,199,fp) == line){
     if(line[0]==0 || line[0] == '#') continue;
     if(sscanf(line,"%d 0x%x 0x%x",&axi,&reg,&val) == 3){
-      if(axi < 32){ // normal registers
+      if(axi < 32 || reg == Reg_Rate){ // normal registers
         bf[rcode++] = axi;
         bf[rcode++] = reg;
         bf[rcode++] = val;
-      }else{// filter
-        if(sscanf(line,"%d 0x%x %lg %lg",&axi,&reg,&freq,&width) == 4){
-          getNotchFilterCoeffs(freq/SAMP_FREQ, width, XTRA_PIPE, a, b, &aLen, &bLen);
-          bf[rcode++] = axi;
-          bf[rcode++] = reg;
-          bf[rcode++] = a[1]&0xffff;
-          bf[rcode++] = axi;
-          bf[rcode++] = reg+2;
-          bf[rcode++] = a[2]&0xffff;
-          bf[rcode++] = axi+1;
-          bf[rcode++] = reg+4;
-          bf[rcode++] = b[1]&0xffff;
-          bf[rcode++] = axi+1;
-          bf[rcode++] = reg+6;
-          bf[rcode++] = b[2]&0xffff;
-          bf[rcode++] = axi+2;
-          bf[rcode++] = reg+8;
-          bf[rcode++] = b[3]&0xffff;
-          bf[rcode++] = axi+2;
-          bf[rcode++] = reg+10;
-          bf[rcode++] = b[4]&0xffff;
-          bf[rcode++] = axi+3;
-          bf[rcode++] = reg+12;
-          bf[rcode++] = b[5]&0xffff;
-          bf[rcode++] = axi+3;
-          bf[rcode++] = reg+14;
-          bf[rcode++] = b[6]&0xffff;
-        }
+      }
+    }else{// filter
+      if(sscanf(line,"%d 0x%x %lg %lg",&axi,&reg,&freq,&width) == 4){
+        getNotchFilterCoeffs(freq/SAMP_FREQ, width, XTRA_PIPE, a, b, &aLen, &bLen);
+        bf[rcode++] = axi;
+        bf[rcode++] = reg;
+        bf[rcode++] = a[1]&0xffff;
+        bf[rcode++] = axi;
+        bf[rcode++] = reg+2;
+        bf[rcode++] = a[2]&0xffff;
+        bf[rcode++] = axi+1;
+        bf[rcode++] = reg+4;
+        bf[rcode++] = b[1]&0xffff;
+        bf[rcode++] = axi+1;
+        bf[rcode++] = reg+6;
+        bf[rcode++] = b[2]&0xffff;
+        bf[rcode++] = axi+2;
+        bf[rcode++] = reg+8;
+        bf[rcode++] = b[3]&0xffff;
+        bf[rcode++] = axi+2;
+        bf[rcode++] = reg+10;
+        bf[rcode++] = b[4]&0xffff;
+        bf[rcode++] = axi+3;
+        bf[rcode++] = reg+12;
+        bf[rcode++] = b[5]&0xffff;
+        bf[rcode++] = axi+3;
+        bf[rcode++] = reg+14;
+        bf[rcode++] = b[6]&0xffff;
       }
     }
   }
   fclose(fp);
+  printf("code After initfile: %d",rcode);
   return(rcode);
 }
 
