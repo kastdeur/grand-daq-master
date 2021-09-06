@@ -272,97 +272,147 @@ def DUfile(button):
     fname = app.getEntry("DUconffile")
     fp=open(fname,"r")
     for line in fp:
-      words = line.split()
-      try:
-        axi = int(words[0])
-        address = int(words[1],0)
-        if address == 0:
-          value =int(words[2],0)
-          if (value & 1<<0) == 0:
-            app.setOptionBox("Configuration","Enable DAQ",False)
-          else:
-            app.setOptionBox("Configuration","Enable DAQ",True)
-          if (value & 1<<1) == 0:
-            app.setOptionBox("Configuration","1PPS",False)
-          else:
-            app.setOptionBox("Configuration","1PPS",True)
-          if (value & 1<<6) == 0:
-            app.setOptionBox("Configuration","Fake ADC",False)
-          else:
-            app.setOptionBox("Configuration","Fake ADC",True)
-          if (value & 1<<8) == 0:
-            app.setOptionBox("Configuration","Filter 1",False)
-          else:
-            app.setOptionBox("Configuration","Filter 1",True)
-          if (value & 1<<9) == 0:
-            app.setOptionBox("Configuration","Filter 2",False)
-          else:
-            app.setOptionBox("Configuration","Filter 2",True)
-          if (value & 1<<10) == 0:
-            app.setOptionBox("Configuration","Filter 3",False)
-          else:
-            app.setOptionBox("Configuration","Filter 3",True)
-          if (value & 1<<11) == 0:
-            app.setOptionBox("Configuration","Filter 4",False)
-          else:
-            app.setOptionBox("Configuration","Filter 4",True)
-          if (value & 1<<15) == 0:
-            app.setOptionBox("Configuration","Auto reboot",False)
-          else:
-            app.setOptionBox("Configuration","Auto reboot",True)
-        if address == 2:
-          value =int(words[2],0)
-          if (value & 1<<0) == 0:
-            app.setOptionBox("Trigger","Ch 3 AND Ch 4",False)
-          else:
-            app.setOptionBox("Trigger","Ch 3 AND Ch 4",True)
-          if (value & 1<<1) == 0:
-            app.setOptionBox("Trigger","Ch 1 AND Ch 2, Ch2>Ch1",False)
-          else:
-            app.setOptionBox("Trigger","Ch 1 AND Ch 2, Ch2>Ch1",True)
-          if (value & 1<<2) == 0:
-            app.setOptionBox("Trigger","(not Ch 1) AND Ch 2",False)
-          else:
-            app.setOptionBox("Trigger","(not Ch 1) AND Ch 2",True)
-          if (value & 1<<4) == 0:
-            app.setOptionBox("Trigger","External",False)
-          else:
-            app.setOptionBox("Trigger","External",True)
-          if (value & 1<<5) == 0:
-            app.setOptionBox("Trigger","10 sec",False)
-          else:
-            app.setOptionBox("Trigger","10 sec",True)
-          if (value & 1<<6) == 0:
-            app.setOptionBox("Trigger","Calibration",False)
-          else:
-            app.setOptionBox("Trigger","Calibration",True)
-          if (value & 1<<7) == 0:
-            app.setOptionBox("Trigger","Ch 1 AND Ch 2",False)
-          else:
-            app.setOptionBox("Trigger","Ch 1 AND Ch 2",True)
-          if (value & 1<<8) == 0:
-            app.setOptionBox("Trigger","Channel 1",False)
-          else:
-            app.setOptionBox("Trigger","Channel 1",True)
-          if (value & 1<<9) == 0:
-            app.setOptionBox("Trigger","Channel 2",False)
-          else:
-            app.setOptionBox("Trigger","Channel 2",True)
-          if (value & 1<<10) == 0:
-            app.setOptionBox("Trigger","Channel 3",False)
-          else:
-            app.setOptionBox("Trigger","Channel 3",True)
-          if (value & 1<<11) == 0:
-            app.setOptionBox("Trigger","Channel 4",False)
-          else:
-            app.setOptionBox("Trigger","Channel 4",True)
-        if address == 4:
-          value =int(words[2],0)
-          for ch in range(1,5):
-            if (value & 1<<(ch-1)) == 0:
-              app.setOptionBox("Channel "+str(ch),"Off")
-      except:
-        print("oops "+line)
+      if line[:1] != '#':
+        words = line.split()
+        try:
+          axi = int(words[0])
+          address = int(words[1],0)
+          if address == 0:
+            value =int(words[2],0)
+            if (value & 1<<0) == 0:
+              app.setOptionBox("Configuration","Enable DAQ",False)
+            else:
+              app.setOptionBox("Configuration","Enable DAQ",True)
+            if (value & 1<<1) == 0:
+              app.setOptionBox("Configuration","1PPS",False)
+            else:
+              app.setOptionBox("Configuration","1PPS",True)
+            if (value & 1<<6) == 0:
+              app.setOptionBox("Configuration","Fake ADC",False)
+            else:
+              app.setOptionBox("Configuration","Fake ADC",True)
+            if (value & 1<<8) == 0:
+              app.setOptionBox("Configuration","Filter 1",False)
+            else:
+              app.setOptionBox("Configuration","Filter 1",True)
+            if (value & 1<<9) == 0:
+              app.setOptionBox("Configuration","Filter 2",False)
+            else:
+              app.setOptionBox("Configuration","Filter 2",True)
+            if (value & 1<<10) == 0:
+              app.setOptionBox("Configuration","Filter 3",False)
+            else:
+              app.setOptionBox("Configuration","Filter 3",True)
+            if (value & 1<<11) == 0:
+              app.setOptionBox("Configuration","Filter 4",False)
+            else:
+              app.setOptionBox("Configuration","Filter 4",True)
+            if (value & 1<<15) == 0:
+              app.setOptionBox("Configuration","Auto reboot",False)
+            else:
+              app.setOptionBox("Configuration","Auto reboot",True)
+          if address == 2:
+            value =int(words[2],0)
+            if (value & 1<<0) == 0:
+              app.setOptionBox("Trigger","Ch 3 AND Ch 4",False)
+            else:
+              app.setOptionBox("Trigger","Ch 3 AND Ch 4",True)
+            if (value & 1<<1) == 0:
+              app.setOptionBox("Trigger","Ch 1 AND Ch 2, Ch2>Ch1",False)
+            else:
+              app.setOptionBox("Trigger","Ch 1 AND Ch 2, Ch2>Ch1",True)
+            if (value & 1<<2) == 0:
+              app.setOptionBox("Trigger","(not Ch 1) AND Ch 2",False)
+            else:
+              app.setOptionBox("Trigger","(not Ch 1) AND Ch 2",True)
+            if (value & 1<<4) == 0:
+              app.setOptionBox("Trigger","External",False)
+            else:
+              app.setOptionBox("Trigger","External",True)
+            if (value & 1<<5) == 0:
+              app.setOptionBox("Trigger","10 sec",False)
+            else:
+              app.setOptionBox("Trigger","10 sec",True)
+            if (value & 1<<6) == 0:
+              app.setOptionBox("Trigger","Calibration",False)
+            else:
+              app.setOptionBox("Trigger","Calibration",True)
+            if (value & 1<<7) == 0:
+              app.setOptionBox("Trigger","Ch 1 AND Ch 2",False)
+            else:
+              app.setOptionBox("Trigger","Ch 1 AND Ch 2",True)
+            if (value & 1<<8) == 0:
+              app.setOptionBox("Trigger","Channel 1",False)
+            else:
+              app.setOptionBox("Trigger","Channel 1",True)
+            if (value & 1<<9) == 0:
+              app.setOptionBox("Trigger","Channel 2",False)
+            else:
+              app.setOptionBox("Trigger","Channel 2",True)
+            if (value & 1<<10) == 0:
+              app.setOptionBox("Trigger","Channel 3",False)
+            else:
+              app.setOptionBox("Trigger","Channel 3",True)
+            if (value & 1<<11) == 0:
+              app.setOptionBox("Trigger","Channel 4",False)
+            else:
+              app.setOptionBox("Trigger","Channel 4",True)
+          if address == 4:
+            value =int(words[2],0)
+            for ch in range(1,5):
+              if (value & 1<<(ch-1)) == 0:
+                app.setOptionBox("Channel "+str(ch),"Off")
+            if ( value & 1<<7 ) != 0:
+              app.setEntry("Test Pulse",value>>8)
+          if address == 6:
+              app.setEntry("Tover",int(words[2],0)<<1)
+          if address == 8:
+            for ch in range(1,5):
+              value = ( int(words[2],0)>>(4*(ch-1))) & 0xf
+              app.setOptionBox("Channel "+str(ch),value+1,True)
+          if address == 0x10 or address == 0x14 or address == 0x18 or address == 0x1C:
+            app.setEntry("C"+str(axi-3)+"TPre",int(words[2],0)<<1)
+          if address == 0x12 or address == 0x16 or address == 0x1A or address == 0x1E:
+            app.setEntry("C"+str(axi-3)+"TPost",int(words[2],0)<<1)
+          if address == 0x20 or address == 0x2C or address == 0x38 or address == 0x44:
+            app.setEntry("C"+str((int)((axi-5)/3))+"Gain",int(words[2],0))
+          if address == 0x22 or address == 0x2E or address == 0x3A or address == 0x46:
+            app.setEntry("C"+str((int)((axi-5)/3))+"Int",int(words[2],0)>>8)
+          if address == 0x24 or address == 0x30 or address == 0x3C or address == 0x48:
+            app.setEntry("C"+str((int)((axi-5)/3))+"BMax",int(words[2],0))
+          if address == 0x26 or address == 0x32 or address == 0x3E or address == 0x4A:
+            app.setEntry("C"+str((int)((axi-5)/3))+"BMin",int(words[2],0))
+          if address == 0x50 or address == 0x5C or address == 0x68 or address == 0x74:
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigT1",int(words[2],0))
+          if address == 0x52 or address == 0x5E or address == 0x6A or address == 0x76:
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigT2",int(words[2],0))
+          if address == 0x54 or address == 0x60 or address == 0x6C or address == 0x78:
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigTper",16*(int(words[2],0)>>8))
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigTprev",4*(int(words[2],0) & 0xFF))
+          if address == 0x56 or address == 0x62 or address == 0x6E or address == 0x7A:
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigNcmax",(int(words[2],0)>>8))
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigTcmax",4*(int(words[2],0) & 0xFF))
+          if address == 0x58 or address == 0x64 or address == 0x70 or address == 0x7C:
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigQmax",(int(words[2],0)>>8))
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigNcmin",(int(words[2],0) & 0xFF))
+          if address == 0x5A or address == 0x66 or address == 0x72 or address == 0x7E:
+            app.setEntry("C"+str((int)((axi-17)/3))+"TrigQmin",(int(words[2],0) & 0xFF))
+          if address == 0x80 or address == 0x90 or address == 0xA0 or address == 0xB0:
+            app.setEntry("C"+str(int(axi/4-7))+"F1M",float(words[2]))
+            app.setEntry("C"+str(int(axi/4-7))+"F1W",float(words[3]))
+          if address == 0xC0 or address == 0xD0 or address == 0xE0 or address == 0xF0:
+            app.setEntry("C"+str(int(axi/4-11))+"F2M",float(words[2]))
+            app.setEntry("C"+str(int(axi/4-11))+"F2W",float(words[3]))
+          if address == 0x100 or address == 0x110 or address == 0x120 or address == 0x130:
+            app.setEntry("C"+str(int(axi/4-15))+"F3M",float(words[2]))
+            app.setEntry("C"+str(int(axi/4-15))+"F3W",float(words[3]))
+          if address == 0x140 or address == 0x150 or address == 0x160 or address == 0x170:
+            app.setEntry("C"+str(int(axi/4-19))+"F4M",float(words[2]))
+            app.setEntry("C"+str(int(axi/4-19))+"F4W",float(words[3]))
+          if address == 0x1E0:
+            app.setEntry("ExpRate",int(words[2],0))
+        except:
+          print("oops "+line)
     fp.close()
   elif button == "Write DU Configuration file":
     VerifyRanges(button)
@@ -489,6 +539,8 @@ def DUfile(button):
         fp.write(str(12+4*ch+16*flt)+" "+hex(48+16*int(ch)+64*int(flt))+" ")
         fp.write(str(app.getEntry("C"+str(ch)+"F"+str(flt)+"M"))+" ")
         fp.write(str(app.getEntry("C"+str(ch)+"F"+str(flt)+"W"))+"\n")
+    fp.write("#Additional Parameters\n")
+    fp.write("120 0x1E0 "+hex(int(app.getEntry("ExpRate")))+"\n")
     fp.close()
   else:
     print("Oops")
@@ -515,7 +567,7 @@ app.setSize(800, 300)
 row = app.getRow()
 app.addButton("Read DAQ Configuration file",confbut,row,0)
 app.addEntry("conffile",row,1,2)
-app.setEntry("conffile","/Users/timmer/Work/GRAND/GRANDdaq/test/conf/Adaq.conf")
+app.setEntry("conffile","/Users/timmer/Work/GRAND/grand-daq-master/conf/Adaq.conf")
 app.setEntryWidth("conffile",len(app.getEntry("conffile")))
 app.addButton("Write DAQ Configuration file",confbut)
 app.addLabelNumericEntry("Next Run")
@@ -543,7 +595,7 @@ app.setSize(1100, 750)
 row = 0
 app.addButton("Read DU Configuration file",DUfile,row,0)
 app.addEntry("DUconffile",row,1,2)
-app.setEntry("DUconffile","/Users/timmer/Work/GRAND/GRANDdaq/test/conf/DU.conf")
+app.setEntry("DUconffile","/Users/timmer/Work/GRAND/grand-daq-master/conf/DU.conf")
 app.setEntryWidth("DUconffile",len(app.getEntry("DUconffile")))
 app.addNamedButton("Verify","VerifyCP",VerifyRanges,row,3)
 app.addNamedButton("Exit","DigitalModule",app.hideSubWindow,row,4)
@@ -565,6 +617,9 @@ row = row+1
 app.addLabel("TP","TestPulse 0-255: 0=0Hz,1=1MHz,255=124Hz",row,0)
 app.addNumericEntry("Test Pulse",row,1)
 app.setEntry("Test Pulse",0)
+app.addLabel("ER","Station Rate (Simulation)",row,2)
+app.addNumericEntry("ExpRate",row,3)
+app.setEntry("ExpRate",1000)
 row = row+1
 app.addLabel("To","Trigger Overlap Time (ns)",row,0)
 app.addNumericEntry("Tover",row,1)
