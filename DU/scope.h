@@ -1,12 +1,12 @@
 /// @file scope.h
-/// @brief Header file for NIKHEF scope v4.0
+/// @brief Header file for GP300 scope
 /// @author C. Timmermans, Nikhef/RU
 
 /*
- * Header file for NIKHEF scope v4.0
+ * Header file for GP300 scope
  *
  * C. Timmermans
- * c.timmermans@hef.ru.nl
+ * c.timmermans@science.ru.nl
  *
  * NOT backward compatible with older versions!
  *>
@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 /*----------------------------------------------------------------------*/
-#define SAMPLING_FREQ 200 //!< 200 MHz scope
+#define SAMPLING_FREQ 500 //!< 500 MHz scope
 
 /*----------------------------------------------------------------------*/
 #define GPS_EPOCH_UNIX  315964800 //!< GPS to unix offst, not counting leap sec
@@ -50,109 +50,92 @@
 #define MIN_MSG_LEN     6                          //!< Minimal length of scope message
 
 /*----------------------------------------------------------------------*/
-/* Message definitions */
-#define ID_PARAM_GPS          0x00
-#define ID_PARAM_CTRL         0x01
-#define ID_PARAM_WINDOWS      0x02
-#define ID_PARAM_COMRES       0x03
-#define ID_PARAM_SPI          0x04
-#define ID_PARAM_TRIG5        0x05
-#define ID_PARAM_CH1          0x08
-#define ID_PARAM_CH2          0x09
-#define ID_PARAM_CH3          0x0A
-#define ID_PARAM_CH4          0x0B
-#define ID_PARAM_TRIG1        0x0C
-#define ID_PARAM_TRIG2        0x0D
-#define ID_PARAM_TRIG3        0x0E
-#define ID_PARAM_TRIG4        0x0F
-#define ID_PARAM_FILT11       0x10
-#define ID_PARAM_FILT12       0x11
-#define ID_PARAM_FILT21       0x12
-#define ID_PARAM_FILT22       0x13
-#define ID_PARAM_FILT31       0x14
-#define ID_PARAM_FILT32       0x15
-#define ID_PARAM_FILT41       0x16
-#define ID_PARAM_FILT42       0x17
+/* Register Definitions*/
+#define Reg_Dig_Control       0x000
+#define Reg_Trig_Enable       0x002
+#define Reg_TestPulse_ChRead  0x004
+#define Reg_Time_Common       0x006
+#define Reg_Inp_Select        0x008
+#define Reg_Spare_A           0x00A
+#define Reg_Spare_B           0x00C
+#define Reg_Spare_C           0x00E
+#define Reg_Time1_Pre         0x010
+#define Reg_Time1_Post        0x012
+#define Reg_Time2_Pre         0x014
+#define Reg_Time2_Post        0x016
+#define Reg_Time3_Pre         0x018
+#define Reg_Time3_Post        0x01A
+#define Reg_Time4_Pre         0x01C
+#define Reg_Time4_Post        0x01E
+#define Reg_ADC1_Gain         0x020
+#define Reg_ADC1_IntOff       0x022
+#define Reg_ADC1_BaseMa       0x024
+#define Reg_ADC1_BaseMi       0x026
+#define Reg_ADC1_SpareA       0x028
+#define Reg_ADC1_SpareB       0x02A
+#define Reg_ADC2_Gain         0x02C
+#define Reg_ADC2_IntOff       0x02E
+#define Reg_ADC2_BaseMax      0x030
+#define Reg_ADC2_BaseMin      0x032
+#define Reg_ADC2_SpareA       0x034
+#define Reg_ADC2_SpareB       0x036
+#define Reg_ADC3_Gain         0x038
+#define Reg_ADC3_IntOff       0x03A
+#define Reg_ADC3_BaseMax      0x03C
+#define Reg_ADC3_BaseMin      0x03E
+#define Reg_ADC3_SpareA       0x040
+#define Reg_ADC3_SpareB       0x042
+#define Reg_ADC4_Gain         0x044
+#define Reg_ADC4_IntOff       0x046
+#define Reg_ADC4_BaseMax      0x048
+#define Reg_ADC4_BaseMin      0x04A
+#define Reg_ADC4_SpareA       0x04C
+#define Reg_ADC4_SpareB       0x04E
+#define Reg_Trig1_ThresA      0x050
+#define Reg_Trig1_ThresB      0x052
+#define Reg_Trig1_Times       0x054
+#define Reg_Trig1_Tmax        0x056
+#define Reg_Trig1_Nmin        0x058
+#define Reg_Trig1_Qmin        0x05A
+#define Reg_Trig2_ThresA      0x05C
+#define Reg_Trig2_ThresB      0x05E
+#define Reg_Trig2_Times       0x060
+#define Reg_Trig2_Tmax        0x062
+#define Reg_Trig2_Nmin        0x064
+#define Reg_Trig2_Qmin        0x066
+#define Reg_Trig3_ThresA      0x068
+#define Reg_Trig3_ThresB      0x06A
+#define Reg_Trig3_Times       0x06C
+#define Reg_Trig3_Tmax        0x06E
+#define Reg_Trig3_Nmin        0x070
+#define Reg_Trig3_Qmin        0x072
+#define Reg_Trig4_ThresA      0x074
+#define Reg_Trig4_ThresB      0x076
+#define Reg_Trig4_Times       0x078
+#define Reg_Trig4_Tmax        0x07A
+#define Reg_Trig4_Nmin        0x07C
+#define Reg_Trig4_Qmin        0x07E
+#define Reg_FltA1_A1          0x080
+#define Reg_FltA1_A2          0x082
+#define Reg_FltA1_B1          0x084
+#define Reg_FltA1_B2          0x086
+#define Reg_FltA1_B3          0x088
+#define Reg_FltA1_B4          0x08A
+#define Reg_FltA1_B5          0x08C
+#define Reg_FltA1_B6          0x08E
+#define Reg_FWStatus          0x1C0
+#define Reg_GenStatus         0x1D0
+#define Reg_GenControl        0x1D4
+#define Reg_Data              0x1D8
+#define Reg_TestTrace         0x1DC
+#define Reg_Rate              0x1E0
+#define Reg_End               0x1FC
+/* Message definitions  Legacy*/
+
 #define ID_PARAM_PPS          0xC4
 #define ID_PARAM_EVENT        0xC0
-#define ID_PARAM_ERROR        0xCE
-#define ID_PARAM_NOP          0x66
 
-#define ID_GPS_BCNT           2 //wil be 46
 #define ID_GPS_VERSION        4
-#define ID_GPS_TIME           8
-#define ID_GPS_STATUS         15
-#define ID_GPS_LONG           16
-#define ID_GPS_LAT            24
-#define ID_GPS_ALT            32
-#define ID_GPS_TEMP           40  
-#define ID_GPS_END            44
-
-#define ID_CTRL_BCNT          2 //bytecount will be 18 
-#define ID_CTRL_CTRLREG       4
-#define ID_CTRL_TRMASK        6
-#define ID_CTRL_CHENABLE      8
-#define ID_CTRL_TRIGDIV       9
-#define ID_CTRL_COINCTIME    10
-#define ID_CTRL_SPARE1       12
-#define ID_CTRL_SPARE2       14
-#define ID_CTRL_END          16
-
-#define ID_WINDOWS_BCNT       2 //bytecount will be 22 
-#define ID_WINDOWS_PRECH1     4
-#define ID_WINDOWS_POSTCH1    6
-#define ID_WINDOWS_PRECH2     8
-#define ID_WINDOWS_POSTCH2   10
-#define ID_WINDOWS_PRECH3    12
-#define ID_WINDOWS_POSTCH3   14
-#define ID_WINDOWS_PRECH4    16
-#define ID_WINDOWS_POSTCH4   18
-#define ID_WINDOWS_END       20
-
-#define ID_COMRES_BCNT        2 //bytecount will be 8
-#define ID_COMRES_CMD         4
-#define ID_COMRES_RES         5
-#define ID_COMRES_END         6
-
-#define ID_SPI_BCNT           2 //bytecount will be 8
-#define ID_SPI_ADDRESS        4
-#define ID_SPI_DATA           5
-#define ID_SPI_END            6
-
-#define ID_TRIG_BCNT          2 //bytecount will be 18
-#define ID_TRIG_THR1          4
-#define ID_TRIG_THR2          6
-#define ID_TRIG_TPREV         8
-#define ID_TRIG_TPER          9
-#define ID_TRIG_TCMAX        10
-#define ID_TRIG_NCMAX        11
-#define ID_TRIG_NCMIN        12
-#define ID_TRIG_QMAX         13
-#define ID_TRIG_QMIN         14
-#define ID_TRIG_SPARE        15
-#define ID_TRIG_END          16
-
-#define ID_CH_BCNT            2 //bytecount will be 18
-#define ID_CH_GAIN            4
-#define ID_CH_OFFSET          6
-#define ID_CH_INTTIME         7
-#define ID_CH_BASEMAX         8
-#define ID_CH_BASEMIN        10
-#define ID_CH_PMV            12
-#define ID_CH_FILTER         13  
-#define ID_CH_SPARE2         14
-#define ID_CH_END            16
-
-#define ID_FILT_BCNT          2 //bytecount will be 22
-#define ID_FILT_A1            4
-#define ID_FILT_A2            6
-#define ID_FILT_B1            8
-#define ID_FILT_B2           10
-#define ID_FILT_B3           12
-#define ID_FILT_B4           14
-#define ID_FILT_B5           16
-#define ID_FILT_B6           18
-#define ID_FILT_END          20
 
 /*----------------------------------------------------------------------*/
 /* Control register bits */
@@ -337,8 +320,8 @@ typedef struct
 // the routines
 
 void scope_set_parameters(uint16_t *data,int to_shadow);
-void scope_write(uint8_t *buf, int32_t len);
-int scope_raw_read(uint8_t *bf, int32_t size);
+void scope_write(uint16_t *buf);
+int scope_raw_read(uint16_t *bf);
 int scope_open();
 void scope_get_parameterlist(uint8_t list);
 void scope_reset();

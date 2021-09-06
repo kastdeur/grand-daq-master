@@ -324,7 +324,7 @@ int check_server_data()
   }
   
   i = 1;
-  //printf("Message length = %d\n",DU_input[0]);
+  printf("Message length = %d\n",DU_input[0]);
   while(i<DU_input[0]-1){
     msg_start = &(DU_input[i]);
     msg_len = msg_start[AMSG_OFFSET_LENGTH];
@@ -572,6 +572,7 @@ void du_scope_check_commands()
 
   //printf("Check cmds %d\n",*shm_cmd.next_read);
   while(((shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)]) &1) ==  1){ // loop over the T3 input
+    printf("Received command\n");
     msg_start = (uint16_t *)(&(shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)+1]));
     msg_len = msg_start[AMSG_OFFSET_LENGTH];
     msg_tag = msg_start[AMSG_OFFSET_TAG];
@@ -585,10 +586,9 @@ void du_scope_check_commands()
         printf("End Initialize %d\n",msg_len);
         il = 3;
         while(il<msg_len){
-          printf("Set parameters %x\n",msg_start[il]);
-          if(msg_start[il]>0 && msg_start[il+1]<=PARAM_LIST_MAXSIZE)
-            scope_set_parameters(&msg_start[il],1);
-          il+=(msg_start[il+1])/2;
+          printf("Set parameters %d %x %x\n",msg_start[il],msg_start[il+1],msg_start[il+2]);
+          scope_set_parameters(&msg_start[il],1);
+          il+=3;
         }
         break;
       case DU_START:
