@@ -16,6 +16,7 @@
 
 /*----------------------------------------------------------------------*/
 #define SAMPLING_FREQ 500 //!< 500 MHz scope
+#define ADC_RESOLUTION 14
 
 /*----------------------------------------------------------------------*/
 #define GPS_EPOCH_UNIX  315964800 //!< GPS to unix offst, not counting leap sec
@@ -40,14 +41,9 @@
 
 /* Maximum ADC size = 4 channels * max_samples/ch * 2 bytes/sample */
 /* Maximum event size = header + ADC data + message end       */
-#ifdef Fake
-#define DATA_MAX_SAMP   10                       //!< Maximal trace length (samples)
-#else
-#define DATA_MAX_SAMP   4096                       //!< Maximal trace length (samples)
-#endif
-#define MAX_READOUT     (70 + DATA_MAX_SAMP*8 + 2) //!< Maximal raw event size
+#define DATA_MAX_SAMP   8192                       //!< Maximal trace length (samples)
 
-#define MIN_MSG_LEN     6                          //!< Minimal length of scope message
+#define MAX_READOUT     (256 + DATA_MAX_SAMP*4) //!< Maximal raw event size
 
 /*----------------------------------------------------------------------*/
 /* Register Definitions*/
@@ -141,72 +137,107 @@
 /* Control register bits */
 #define CTRL_SEND_EN    (1 << 0)
 #define CTRL_PPS_EN     (1 << 1)
-#define CTRL_FULLSCALE  (1 << 2)
-#define CTRL_FILTERREAD (1 << 3)
-#define CTRL_THRESHMODE (1 << 4)
-#define CTRL_GPS_PROG   (1 << 5)    
+#define CTRL_FLTR_EN    (1 << 3)
 #define CTRL_FAKE_ADC   (1 << 6)
-#define CTRL_DCO_EDGE   (1 << 7)
 #define CTRL_FILTER1    (1 <<  8)
 #define CTRL_FILTER2    (1 <<  9)
 #define CTRL_FILTER3    (1 << 10)
 #define CTRL_FILTER4    (1 << 11)
+#define CTRL_AUTOBOOT   (1 << 15)
 
-#define TRIG_POW      (1 << 3)
-#define TRIG_EXT      (1 << 4)
+#define GENSTAT_PPSFIFO  (1<<24)
+#define GENSTAT_EVTFIFO  (1<<25)
+#define GENSTAT_DMAFIFO  (1<<26)
+
 #define TRIG_10SEC    (1 << 5)
 #define TRIG_CAL      (1 << 6)
-#define TRIG_CH1CH2   (1 << 7)
 
-
-// general aera event types
+// general event types
 #define SELF_TRIGGERED  0x0001
-#define EXT_EL_TRIGGER  0x0002
 #define CALIB_TRIGGER   0x0004
-#define EXT_T3_TRIGGER  0x0008  // by SD, Gui ...
+#define EXT_T3_TRIGGER  0x0008
 #define RANDOM_TRIGGER  0x0010
-#define TRIGGER_T3_EXT_SD          0x0100
-#define TRIGGER_T3_EXT_GUI         0x0200
-#define TRIGGER_T3_EXT_FD          0x0400
-#define TRIGGER_T3_EXT_HEAT        0x0800
-#define TRIGGER_T3_MINBIAS         0x1000
-#define TRIGGER_T3_EXT_AERALET     0x2000
-#define TRIGGER_T3_EXT_AIRPLANE    0x4000
-#define TRIGGER_T3_RANDOM          0x8000
+#define TRIGGER_T3_MINBIAS 0x1000
+#define TRIGGER_T3_RANDOM  0x8000
 
 /*----------------------------------------------------------------------*/
 /* PPS definition */
-#define PPS_BCNT        2 //332 bytes
-#define PPS_TIME        4
-#define PPS_STATUS     11 
-#define PPS_CTP        12
-#define PPS_QUANT      16
-#define PPS_FLAGS      20
-#define PPS_RATE       24
-#define PPS_GPS        26
-#define PPS_CTRL       66
-#define PPS_WINDOWS    78
-#define PPS_CH1        94
-#define PPS_CH2       106
-#define PPS_CH3       118
-#define PPS_CH4       130
-#define PPS_TRIG1     142
-#define PPS_TRIG2     154
-#define PPS_TRIG3     166
-#define PPS_TRIG4     178
-#define PPS_FILT11    190
-#define PPS_FILT12    206
-#define PPS_FILT21    222
-#define PPS_FILT22    238
-#define PPS_FILT31    254
-#define PPS_FILT32    270
-#define PPS_FILT41    286
-#define PPS_FILT42    302
-#define PPS_END       318
-#define PPS_LENGTH    (320) //!< Total size of the PPS message
+#define MAGIC_PPS     0xFACE
+#define WCNT_PPS      32
+#define PPS_MAGIC       1
+#define PPS_TRIG_PAT    2
+#define PPS_TRIG_RATE   3
+#define PPS_CTD         4
+#define PPS_CTP         6
+#define PPS_OFFSET      8
+#define PPS_LEAP       10
+#define PPS_STATFLAG   11
+#define PPS_CRITICAL   12
+#define PPS_WARNING    13
+#define PPS_YEAR       14
+#define PPS_DAYMONTH   15
+#define PPS_MINHOUR    16
+#define PPS_STATSEC    17
+#define PPS_LONGITUDE  18
+#define PPS_LATITUDE   22
+#define PPS_ALTITUDE   26
+#define PPS_TEMPERATURE 30
 
 /*----------------------------------------------------------------------*/
 /* Event definition */
+#define MAGIC_EVT         0xADC0
+#define HEADER_EVT        256
+#define FORMAT_EVT        1
+#define EVT_LENGTH        0 // nr of int16 words
+#define EVT_ID            1 // nr of int16 words
+#define EVT_HARDWARE      2
+#define EVT_HDRLEN        3 //256 (int16 words in the header)
+#define EVT_SECOND        4
+#define EVT_NANOSEC       6
+#define EVT_TRIGGERPOS    8
+#define EVT_ATM_TEMP      17
+#define EVT_ATM_PRES      18
+#define EVT_ATM_HUM       19
+#define EVT_ACCEL_X       20
+#define EVT_ACCEL_Y       21
+#define EVT_ACCEL_Z       22
+#define EVT_BATTERY       23
+#define EVT_VERSION       24
+#define EVT_MSPS          25
+#define EVT_ADC_RES       26
+#define EVT_INP_SELECT    27
+#define EVT_CH_ENABLE     28
+#define EVT_TOT_SAMPLES   29
+#define EVT_CH1_SAMPLES   30
+#define EVT_CH2_SAMPLES   31
+#define EVT_CH3_SAMPLES   32
+#define EVT_CH4_SAMPLES   33
+#define EVT_TRIG_PAT      34
+#define EVT_TRIG_RATE     35
+#define EVT_CTD           36
+#define EVT_CTP           38
+#define EVT_PPS_OFFSET    40
+#define EVT_LEAP          42
+#define EVT_GPS_STATFLAG  43
+#define EVT_GPS_CRITICAL  44
+#define EVT_GPS_WARNING   45
+#define EVT_YEAR          46
+#define EVT_DAYMONTH      47
+#define EVT_MINHOUR       48
+#define EVT_STATSEC       49
+#define EVT_LONGITUDE     50
+#define EVT_LATITUDE      54
+#define EVT_ALTITUDE      58
+#define EVT_GPS_TEMP      62
+#define EVT_CTRL          64
+#define EVT_WINDOWS       72
+#define EVT_CHANNEL       80
+#define EVT_TRIGGER       104
+#define EVT_FILTER1       128
+#define EVT_FILTER2       160
+#define EVT_FILTER3       192
+#define EVT_FILTER4       224
+
 #define EVENT_BCNT        2 //bytecount
 #define EVENT_TRIGMASK    4
 #define EVENT_GPS         6
@@ -262,7 +293,6 @@
 #define FIRMWARE_VERSION(x) (10*((x>>20)&0xf)+((x>>16)&0xf)) //!< Calculation of Firmware version number
 #define FIRMWARE_SUBVERSION(x)   (10*((x>>12)&0xf)+((x>>9)&0x7)) //!< Calculation of subversion number
 #define SERIAL_NUMBER(x)    (100*((x>>8)&0x1)+10*((x>>4)&0xf)+((x>>0)&0xf)) //!< serial number of digital board
-#define ADC_RESOLUTION(x) (x>79 ? 14 : 12) //!< ADC resolution depends on board number
 /*
   buffer definitions for the scope readout process.
  */
@@ -270,7 +300,7 @@
 
 #define MAX_RATE 1000            //!< maximum event rate, in Hz
 #ifdef Fake
-#define BUFSIZE 3000            //!< store up to 10 events in circular buffer
+#define BUFSIZE 3            //!< store up to 10 events in circular buffer
 #else
 #define BUFSIZE 3000            //!< store up to 3000 events in circular buffer
 #endif
@@ -295,7 +325,7 @@ typedef struct
   uint32_t t3_nanoseconds;  //!< proper timing
   uint32_t t2_nanoseconds;  //!< rough timing for t2 purposes only
   uint32_t CTD;             //!< clock tick of the trigger
-  uint32_t trig_flag;       //!< trigger flag 
+  uint32_t trig_flag;       //!< trigger flag
   uint32_t evsize;          //!< size of the event
   float quant1;             //!< quant error previous PPS
   float quant2;             //!< quant error next PPS
@@ -307,21 +337,15 @@ typedef struct
 typedef struct
 {
   uint32_t ts_seconds;      //!< time marker in GPS sec
-  uint32_t CTP;             //!< clock ticks since previous time marker
-  uint32_t SCTP;            //!< clock ticks per second
-  int8_t sync;              //!< clock-edge of timestamp
-  float quant;              //!< deviation from true second
-  double clock_tick;        //!< time between clock ticks
-  uint16_t rate[4];         //!< event rate in one second for all channels
-  uint8_t buf[PPS_LENGTH];  //!< raw data buffer
+  uint16_t data[WCNT_PPS];  //! all data read in PPS
 } GPS_DATA;
 
 
 // the routines
 
 void scope_set_parameters(uint16_t *data,int to_shadow);
-void scope_write(uint16_t *buf);
-int scope_raw_read(uint16_t *bf);
+void scope_raw_write(uint16_t *buf,int nwords);
+int scope_raw_read(uint16_t *bf, int nwords);
 int scope_open();
 void scope_get_parameterlist(uint8_t list);
 void scope_reset();
@@ -348,5 +372,6 @@ void scope_calibrate();
 void scope_initialize_calibration();
 int scope_calibrate_evt();
 void scope_close();
+void scope_create_memory();
 
 //

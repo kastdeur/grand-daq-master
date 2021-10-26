@@ -1,5 +1,5 @@
 /// @file
-/// @brief General definitions used in the AERA DAQ
+/// @brief General definitions used in the GP300 DAQ
 /// @author C. Timmermans, Nikhef/RU
 #ifndef _AMSG_H_
 #define _AMSG_H_
@@ -31,15 +31,9 @@
 #define DU_LISTEN   21     //!< Message tag as defined by DAQ group
 #define DU_SCRIPT   22     //!< Message tag as defined by DAQ group
 #define DU_CALIBRATE 23    //!< Message tag as defined by DAQ group
-#define DU_GET_EXT_SD_EVENT            25 //!< Message tag as defined by DAQ group
 #define DU_GET_EXT_GUI_EVENT           26 //!< Message tag as defined by DAQ group
-#define DU_GET_EXT_FD_EVENT            27 //!< Message tag as defined by DAQ group
-#define DU_GET_EXT_HEAT_EVENT          28 //!< Message tag as defined by DAQ group
 #define DU_GET_MINBIAS_EVENT           29 //!< Message tag as defined by DAQ group
-#define DU_GET_EXT_AERALET_EVENT       30 //!< Message tag as defined by DAQ group
-#define DU_GET_EXT_AIRPLANE_EVENT      31 //!< Message tag as defined by DAQ group
 #define DU_GET_RANDOM_EVENT            32 //!< Message tag as defined by DAQ group
-#define DU_GET_SCINTILLATOR_EVENT      33 //!< Message tag as defined by DAQ group
 #define T3_EVENT_REQUEST_LIST 201  //!< Message tag as defined by DAQ group
 #define GUI_UPDATE_DB 401          //!< Message tag as defined by DAQ group
 #define GUI_INITIALIZE 402         //!< Message tag as defined by DAQ group
@@ -57,8 +51,7 @@
 #define ALIVE_ACK 9999  //!< Acknowledge alive, sent by DU
 
 #define DU_HWNL 1       //!< Dutch hardware
-#define DU_HWFR 2       //!< French hardware
-#define DU_HWDU 3       //!< German hardware
+
 
 typedef struct{
   uint16_t length;      //!< Message length, not including the length word itself
