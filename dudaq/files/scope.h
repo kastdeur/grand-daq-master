@@ -1,12 +1,12 @@
 /// @file scope.h
-/// @brief Header file for NIKHEF scope v4.0
+/// @brief Header file for GP300 scope
 /// @author C. Timmermans, Nikhef/RU
 
 /*
- * Header file for NIKHEF scope v4.0
+ * Header file for GP300 scope
  *
  * C. Timmermans
- * c.timmermans@hef.ru.nl
+ * c.timmermans@science.ru.nl
  *
  * NOT backward compatible with older versions!
  *>
@@ -15,7 +15,8 @@
 #include <stdint.h>
 
 /*----------------------------------------------------------------------*/
-#define SAMPLING_FREQ 200 //!< 200 MHz scope
+#define SAMPLING_FREQ 500 //!< 500 MHz scope
+#define ADC_RESOLUTION 14
 
 /*----------------------------------------------------------------------*/
 #define GPS_EPOCH_UNIX  315964800 //!< GPS to unix offst, not counting leap sec
@@ -40,190 +41,204 @@
 
 /* Maximum ADC size = 4 channels * max_samples/ch * 2 bytes/sample */
 /* Maximum event size = header + ADC data + message end       */
-#ifdef Fake
-#define DATA_MAX_SAMP   10                       //!< Maximal trace length (samples)
-#else
-#define DATA_MAX_SAMP   4096                       //!< Maximal trace length (samples)
-#endif
-#define MAX_READOUT     (70 + DATA_MAX_SAMP*8 + 2) //!< Maximal raw event size
+#define DATA_MAX_SAMP   8192                       //!< Maximal trace length (samples)
 
-#define MIN_MSG_LEN     6                          //!< Minimal length of scope message
+#define MAX_READOUT     (256 + DATA_MAX_SAMP*4) //!< Maximal raw event size
 
 /*----------------------------------------------------------------------*/
-/* Message definitions */
-#define ID_PARAM_GPS          0x00
-#define ID_PARAM_CTRL         0x01
-#define ID_PARAM_WINDOWS      0x02
-#define ID_PARAM_COMRES       0x03
-#define ID_PARAM_SPI          0x04
-#define ID_PARAM_TRIG5        0x05
-#define ID_PARAM_CH1          0x08
-#define ID_PARAM_CH2          0x09
-#define ID_PARAM_CH3          0x0A
-#define ID_PARAM_CH4          0x0B
-#define ID_PARAM_TRIG1        0x0C
-#define ID_PARAM_TRIG2        0x0D
-#define ID_PARAM_TRIG3        0x0E
-#define ID_PARAM_TRIG4        0x0F
-#define ID_PARAM_FILT11       0x10
-#define ID_PARAM_FILT12       0x11
-#define ID_PARAM_FILT21       0x12
-#define ID_PARAM_FILT22       0x13
-#define ID_PARAM_FILT31       0x14
-#define ID_PARAM_FILT32       0x15
-#define ID_PARAM_FILT41       0x16
-#define ID_PARAM_FILT42       0x17
+#define TDAQ_BASE             0x80000000
+/* Register Definitions*/
+#define Reg_Dig_Control       0x000
+#define Reg_Trig_Enable       0x002
+#define Reg_TestPulse_ChRead  0x004
+#define Reg_Time_Common       0x006
+#define Reg_Inp_Select        0x008
+#define Reg_Spare_A           0x00A
+#define Reg_Spare_B           0x00C
+#define Reg_Spare_C           0x00E
+#define Reg_Time1_Pre         0x010
+#define Reg_Time1_Post        0x012
+#define Reg_Time2_Pre         0x014
+#define Reg_Time2_Post        0x016
+#define Reg_Time3_Pre         0x018
+#define Reg_Time3_Post        0x01A
+#define Reg_Time4_Pre         0x01C
+#define Reg_Time4_Post        0x01E
+#define Reg_ADC1_Gain         0x020
+#define Reg_ADC1_IntOff       0x022
+#define Reg_ADC1_BaseMa       0x024
+#define Reg_ADC1_BaseMi       0x026
+#define Reg_ADC1_SpareA       0x028
+#define Reg_ADC1_SpareB       0x02A
+#define Reg_ADC2_Gain         0x02C
+#define Reg_ADC2_IntOff       0x02E
+#define Reg_ADC2_BaseMax      0x030
+#define Reg_ADC2_BaseMin      0x032
+#define Reg_ADC2_SpareA       0x034
+#define Reg_ADC2_SpareB       0x036
+#define Reg_ADC3_Gain         0x038
+#define Reg_ADC3_IntOff       0x03A
+#define Reg_ADC3_BaseMax      0x03C
+#define Reg_ADC3_BaseMin      0x03E
+#define Reg_ADC3_SpareA       0x040
+#define Reg_ADC3_SpareB       0x042
+#define Reg_ADC4_Gain         0x044
+#define Reg_ADC4_IntOff       0x046
+#define Reg_ADC4_BaseMax      0x048
+#define Reg_ADC4_BaseMin      0x04A
+#define Reg_ADC4_SpareA       0x04C
+#define Reg_ADC4_SpareB       0x04E
+#define Reg_Trig1_ThresA      0x050
+#define Reg_Trig1_ThresB      0x052
+#define Reg_Trig1_Times       0x054
+#define Reg_Trig1_Tmax        0x056
+#define Reg_Trig1_Nmin        0x058
+#define Reg_Trig1_Qmin        0x05A
+#define Reg_Trig2_ThresA      0x05C
+#define Reg_Trig2_ThresB      0x05E
+#define Reg_Trig2_Times       0x060
+#define Reg_Trig2_Tmax        0x062
+#define Reg_Trig2_Nmin        0x064
+#define Reg_Trig2_Qmin        0x066
+#define Reg_Trig3_ThresA      0x068
+#define Reg_Trig3_ThresB      0x06A
+#define Reg_Trig3_Times       0x06C
+#define Reg_Trig3_Tmax        0x06E
+#define Reg_Trig3_Nmin        0x070
+#define Reg_Trig3_Qmin        0x072
+#define Reg_Trig4_ThresA      0x074
+#define Reg_Trig4_ThresB      0x076
+#define Reg_Trig4_Times       0x078
+#define Reg_Trig4_Tmax        0x07A
+#define Reg_Trig4_Nmin        0x07C
+#define Reg_Trig4_Qmin        0x07E
+#define Reg_FltA1_A1          0x080
+#define Reg_FltA1_A2          0x082
+#define Reg_FltA1_B1          0x084
+#define Reg_FltA1_B2          0x086
+#define Reg_FltA1_B3          0x088
+#define Reg_FltA1_B4          0x08A
+#define Reg_FltA1_B5          0x08C
+#define Reg_FltA1_B6          0x08E
+#define Reg_FWStatus          0x1C0
+#define Reg_GenStatus         0x1D0
+#define Reg_GenControl        0x1D4
+#define Reg_Data              0x1D8
+#define Reg_TestTrace         0x1DC
+#define Reg_Rate              0x1E0
+#define Reg_End               0x1FC
+/* Message definitions  Legacy*/
+
 #define ID_PARAM_PPS          0xC4
 #define ID_PARAM_EVENT        0xC0
-#define ID_PARAM_ERROR        0xCE
-#define ID_PARAM_NOP          0x66
 
-#define ID_GPS_BCNT           2 //wil be 46
 #define ID_GPS_VERSION        4
-#define ID_GPS_TIME           8
-#define ID_GPS_STATUS         15
-#define ID_GPS_LONG           16
-#define ID_GPS_LAT            24
-#define ID_GPS_ALT            32
-#define ID_GPS_TEMP           40  
-#define ID_GPS_END            44
-
-#define ID_CTRL_BCNT          2 //bytecount will be 18 
-#define ID_CTRL_CTRLREG       4
-#define ID_CTRL_TRMASK        6
-#define ID_CTRL_CHENABLE      8
-#define ID_CTRL_TRIGDIV       9
-#define ID_CTRL_COINCTIME    10
-#define ID_CTRL_SPARE1       12
-#define ID_CTRL_SPARE2       14
-#define ID_CTRL_END          16
-
-#define ID_WINDOWS_BCNT       2 //bytecount will be 22 
-#define ID_WINDOWS_PRECH1     4
-#define ID_WINDOWS_POSTCH1    6
-#define ID_WINDOWS_PRECH2     8
-#define ID_WINDOWS_POSTCH2   10
-#define ID_WINDOWS_PRECH3    12
-#define ID_WINDOWS_POSTCH3   14
-#define ID_WINDOWS_PRECH4    16
-#define ID_WINDOWS_POSTCH4   18
-#define ID_WINDOWS_END       20
-
-#define ID_COMRES_BCNT        2 //bytecount will be 8
-#define ID_COMRES_CMD         4
-#define ID_COMRES_RES         5
-#define ID_COMRES_END         6
-
-#define ID_SPI_BCNT           2 //bytecount will be 8
-#define ID_SPI_ADDRESS        4
-#define ID_SPI_DATA           5
-#define ID_SPI_END            6
-
-#define ID_TRIG_BCNT          2 //bytecount will be 18
-#define ID_TRIG_THR1          4
-#define ID_TRIG_THR2          6
-#define ID_TRIG_TPREV         8
-#define ID_TRIG_TPER          9
-#define ID_TRIG_TCMAX        10
-#define ID_TRIG_NCMAX        11
-#define ID_TRIG_NCMIN        12
-#define ID_TRIG_QMAX         13
-#define ID_TRIG_QMIN         14
-#define ID_TRIG_SPARE        15
-#define ID_TRIG_END          16
-
-#define ID_CH_BCNT            2 //bytecount will be 18
-#define ID_CH_GAIN            4
-#define ID_CH_OFFSET          6
-#define ID_CH_INTTIME         7
-#define ID_CH_BASEMAX         8
-#define ID_CH_BASEMIN        10
-#define ID_CH_PMV            12
-#define ID_CH_FILTER         13  
-#define ID_CH_SPARE2         14
-#define ID_CH_END            16
-
-#define ID_FILT_BCNT          2 //bytecount will be 22
-#define ID_FILT_A1            4
-#define ID_FILT_A2            6
-#define ID_FILT_B1            8
-#define ID_FILT_B2           10
-#define ID_FILT_B3           12
-#define ID_FILT_B4           14
-#define ID_FILT_B5           16
-#define ID_FILT_B6           18
-#define ID_FILT_END          20
 
 /*----------------------------------------------------------------------*/
 /* Control register bits */
 #define CTRL_SEND_EN    (1 << 0)
 #define CTRL_PPS_EN     (1 << 1)
-#define CTRL_FULLSCALE  (1 << 2)
-#define CTRL_FILTERREAD (1 << 3)
-#define CTRL_THRESHMODE (1 << 4)
-#define CTRL_GPS_PROG   (1 << 5)    
+#define CTRL_FLTR_EN    (1 << 3)
 #define CTRL_FAKE_ADC   (1 << 6)
-#define CTRL_DCO_EDGE   (1 << 7)
 #define CTRL_FILTER1    (1 <<  8)
 #define CTRL_FILTER2    (1 <<  9)
 #define CTRL_FILTER3    (1 << 10)
 #define CTRL_FILTER4    (1 << 11)
+#define CTRL_AUTOBOOT   (1 << 15)
 
-#define TRIG_POW      (1 << 3)
-#define TRIG_EXT      (1 << 4)
+#define GENSTAT_PPSFIFO  (1<<24)
+#define GENSTAT_EVTFIFO  (1<<25)
+#define GENSTAT_DMAFIFO  (1<<26)
+
 #define TRIG_10SEC    (1 << 5)
 #define TRIG_CAL      (1 << 6)
-#define TRIG_CH1CH2   (1 << 7)
 
-
-// general aera event types
+// general event types
 #define SELF_TRIGGERED  0x0001
-#define EXT_EL_TRIGGER  0x0002
 #define CALIB_TRIGGER   0x0004
-#define EXT_T3_TRIGGER  0x0008  // by SD, Gui ...
+#define EXT_T3_TRIGGER  0x0008
 #define RANDOM_TRIGGER  0x0010
-#define TRIGGER_T3_EXT_SD          0x0100
-#define TRIGGER_T3_EXT_GUI         0x0200
-#define TRIGGER_T3_EXT_FD          0x0400
-#define TRIGGER_T3_EXT_HEAT        0x0800
-#define TRIGGER_T3_MINBIAS         0x1000
-#define TRIGGER_T3_EXT_AERALET     0x2000
-#define TRIGGER_T3_EXT_AIRPLANE    0x4000
-#define TRIGGER_T3_RANDOM          0x8000
+#define TRIGGER_T3_MINBIAS 0x1000
+#define TRIGGER_T3_RANDOM  0x8000
 
 /*----------------------------------------------------------------------*/
 /* PPS definition */
-#define PPS_BCNT        2 //332 bytes
-#define PPS_TIME        4
-#define PPS_STATUS     11 
-#define PPS_CTP        12
-#define PPS_QUANT      16
-#define PPS_FLAGS      20
-#define PPS_RATE       24
-#define PPS_GPS        26
-#define PPS_CTRL       66
-#define PPS_WINDOWS    78
-#define PPS_CH1        94
-#define PPS_CH2       106
-#define PPS_CH3       118
-#define PPS_CH4       130
-#define PPS_TRIG1     142
-#define PPS_TRIG2     154
-#define PPS_TRIG3     166
-#define PPS_TRIG4     178
-#define PPS_FILT11    190
-#define PPS_FILT12    206
-#define PPS_FILT21    222
-#define PPS_FILT22    238
-#define PPS_FILT31    254
-#define PPS_FILT32    270
-#define PPS_FILT41    286
-#define PPS_FILT42    302
-#define PPS_END       318
-#define PPS_LENGTH    (320) //!< Total size of the PPS message
+#define MAGIC_PPS     0xFACE
+#define WCNT_PPS      32
+#define PPS_MAGIC       1
+#define PPS_TRIG_PAT    2
+#define PPS_TRIG_RATE   3
+#define PPS_CTD         4
+#define PPS_CTP         6
+#define PPS_OFFSET      8
+#define PPS_LEAP       10
+#define PPS_STATFLAG   11
+#define PPS_CRITICAL   12
+#define PPS_WARNING    13
+#define PPS_YEAR       14
+#define PPS_DAYMONTH   15
+#define PPS_MINHOUR    16
+#define PPS_STATSEC    17
+#define PPS_LONGITUDE  18
+#define PPS_LATITUDE   22
+#define PPS_ALTITUDE   26
+#define PPS_TEMPERATURE 30
 
 /*----------------------------------------------------------------------*/
 /* Event definition */
+#define MAGIC_EVT         0xADC0
+#define HEADER_EVT        256
+#define FORMAT_EVT        1
+#define EVT_LENGTH        0 // nr of int16 words
+#define EVT_ID            1 // nr of int16 words
+#define EVT_HARDWARE      2
+#define EVT_HDRLEN        3 //256 (int16 words in the header)
+#define EVT_SECOND        4
+#define EVT_NANOSEC       6
+#define EVT_TRIGGERPOS    8
+#define EVT_ATM_TEMP      17
+#define EVT_ATM_PRES      18
+#define EVT_ATM_HUM       19
+#define EVT_ACCEL_X       20
+#define EVT_ACCEL_Y       21
+#define EVT_ACCEL_Z       22
+#define EVT_BATTERY       23
+#define EVT_VERSION       24
+#define EVT_MSPS          25
+#define EVT_ADC_RES       26
+#define EVT_INP_SELECT    27
+#define EVT_CH_ENABLE     28
+#define EVT_TOT_SAMPLES   29
+#define EVT_CH1_SAMPLES   30
+#define EVT_CH2_SAMPLES   31
+#define EVT_CH3_SAMPLES   32
+#define EVT_CH4_SAMPLES   33
+#define EVT_TRIG_PAT      34
+#define EVT_TRIG_RATE     35
+#define EVT_CTD           36
+#define EVT_CTP           38
+#define EVT_PPS_OFFSET    40
+#define EVT_LEAP          42
+#define EVT_GPS_STATFLAG  43
+#define EVT_GPS_CRITICAL  44
+#define EVT_GPS_WARNING   45
+#define EVT_YEAR          46
+#define EVT_DAYMONTH      47
+#define EVT_MINHOUR       48
+#define EVT_STATSEC       49
+#define EVT_LONGITUDE     50
+#define EVT_LATITUDE      54
+#define EVT_ALTITUDE      58
+#define EVT_GPS_TEMP      62
+#define EVT_CTRL          64
+#define EVT_WINDOWS       72
+#define EVT_CHANNEL       80
+#define EVT_TRIGGER       104
+#define EVT_FILTER1       128
+#define EVT_FILTER2       160
+#define EVT_FILTER3       192
+#define EVT_FILTER4       224
+
 #define EVENT_BCNT        2 //bytecount
 #define EVENT_TRIGMASK    4
 #define EVENT_GPS         6
@@ -279,7 +294,6 @@
 #define FIRMWARE_VERSION(x) (10*((x>>20)&0xf)+((x>>16)&0xf)) //!< Calculation of Firmware version number
 #define FIRMWARE_SUBVERSION(x)   (10*((x>>12)&0xf)+((x>>9)&0x7)) //!< Calculation of subversion number
 #define SERIAL_NUMBER(x)    (100*((x>>8)&0x1)+10*((x>>4)&0xf)+((x>>0)&0xf)) //!< serial number of digital board
-#define ADC_RESOLUTION(x) (x>79 ? 14 : 12) //!< ADC resolution depends on board number
 /*
   buffer definitions for the scope readout process.
  */
@@ -287,7 +301,7 @@
 
 #define MAX_RATE 1000            //!< maximum event rate, in Hz
 #ifdef Fake
-#define BUFSIZE 3000            //!< store up to 10 events in circular buffer
+#define BUFSIZE 3            //!< store up to 10 events in circular buffer
 #else
 #define BUFSIZE 3000            //!< store up to 3000 events in circular buffer
 #endif
@@ -312,7 +326,7 @@ typedef struct
   uint32_t t3_nanoseconds;  //!< proper timing
   uint32_t t2_nanoseconds;  //!< rough timing for t2 purposes only
   uint32_t CTD;             //!< clock tick of the trigger
-  uint32_t trig_flag;       //!< trigger flag 
+  uint32_t trig_flag;       //!< trigger flag
   uint32_t evsize;          //!< size of the event
   float quant1;             //!< quant error previous PPS
   float quant2;             //!< quant error next PPS
@@ -324,21 +338,15 @@ typedef struct
 typedef struct
 {
   uint32_t ts_seconds;      //!< time marker in GPS sec
-  uint32_t CTP;             //!< clock ticks since previous time marker
-  uint32_t SCTP;            //!< clock ticks per second
-  int8_t sync;              //!< clock-edge of timestamp
-  float quant;              //!< deviation from true second
-  double clock_tick;        //!< time between clock ticks
-  uint16_t rate[4];         //!< event rate in one second for all channels
-  uint8_t buf[PPS_LENGTH];  //!< raw data buffer
+  uint16_t data[WCNT_PPS];  //! all data read in PPS
 } GPS_DATA;
 
 
 // the routines
 
-void scope_set_parameters(uint16_t *data,int to_shadow);
-void scope_write(uint8_t *buf, int32_t len);
-int scope_raw_read(uint8_t *bf, int32_t size);
+void scope_set_parameters(uint32_t reg_addr, uint32_t value,uint32_t to_shadow);
+void scope_raw_write(uint32_t reg_addr, uint32_t value);
+int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value);
 int scope_open();
 void scope_get_parameterlist(uint8_t list);
 void scope_reset();
@@ -365,5 +373,6 @@ void scope_calibrate();
 void scope_initialize_calibration();
 int scope_calibrate_evt();
 void scope_close();
-
+void scope_create_memory();
+void scope_copy_shadow();
 //

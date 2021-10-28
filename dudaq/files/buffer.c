@@ -34,7 +34,7 @@ print_message(AMSG *msg) prints the complete content of a message (hex and dec)!
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "dudaq.h"
+#include "DU.h"
 #include "amsg.h"
 #include "ad_shm.h"
 #include "scope.h"
@@ -103,14 +103,15 @@ int buffer_to_t3(unsigned short event_nr, unsigned short isec,unsigned int ssec,
     printf("Did not find the requested buffer isec %u ssec %u (0x%x)\n", isec, ssec,ssec);
     return(0);
   }
+  //printf("Copy the buffer to the output %d\n",event_nr);
   memcpy(&(t3_buffer[t3_wait]),&(eventbuf[ibuf]),sizeof(EV_DATA)); // found it, now copy the data
   eventbuf[ibuf].ts_seconds = 0;                                   // reset the time, so this buffer is never used
   t3_buffer[t3_wait].event_nr = event_nr;                          // put the event number to the data
   t3_buffer[t3_wait].trig_flag = trflag;                          // put the trigger flag
 
-  if(t3_buffer[t3_wait].t3calc == 1) {
-    //printf("T3 nsec has been calculated\n");
-  }
+  //if(t3_buffer[t3_wait].t3calc == 1) {
+  //  printf("T3 nsec has been calculated\n");
+  //}
   prevgps = evgps-1;
   if(prevgps<0)prevgps = GPSSIZE-1;
   //if(t3_buffer[t3_wait].ts_seconds <(gpsbuf[prevgps].ts_seconds-5)) reset_socket();
@@ -252,7 +253,7 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
     if(cha>0) chm |=(1<<i);
     trace_length +=cha;
   }
-  nl_hlen =  14+(EVENT_CTRL-EVENT_TRIGMASK) +(PPS_END-PPS_GPS); //(38+292 = 330)
+  nl_hlen =  14+(EVENT_CTRL-EVENT_TRIGMASK) ; //(38+292 = 330)
   sz =nl_hlen+2*trace_length;
   int len = ((sz)/sizeof(uint16_t));   // length of ADC information
   if(len >= (bfsize-bffil-(5+MIN_EVHEADER_LENGTH))){
@@ -260,7 +261,7 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
     return(0);                                                           // event does not fit
   }
   if(!t3_buffer[t3_send].t3calc) printf("Timing of buffer %d still needs to be done\n",t3_send);
-  printf("Send %d Wait %d\n",t3_send,t3_wait);
+  //printf("Send %d Wait %d\n",t3_send,t3_wait);
   if((t3_send != t3_wait)           // events to send, used to be a while loop
      && (len < (bfsize-bffil-(5+MIN_EVHEADER_LENGTH)))      // fit in buffer
      && (t3_buffer[t3_send].t3calc == 1)
@@ -269,8 +270,6 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
     /* Note: casting the bf array pointer as pointers to various structs (such as AMSG and
      EVENTBODY is not reliable).  Instead of assuming the structs are packed, we use halfword
      (16b) offsets into the message and event body to write the data.  */
-    if (firmware_version == 0)
-      memcpy(&firmware_version,(const void *)&(gpsbuf[0].buf[PPS_GPS+ID_GPS_VERSION-4]),4);
     
     msg_start = &bf[bffil];
     
@@ -296,7 +295,6 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
     msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRIG_FLAG]  = 0;
     if(cha &TRIG_10SEC) msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRIG_FLAG] |= RANDOM_TRIGGER;
     if(cha &TRIG_CAL) msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRIG_FLAG] |= CALIB_TRIGGER;
-    if(cha &TRIG_EXT) msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRIG_FLAG] |= EXT_EL_TRIGGER;
     if(msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRIG_FLAG]==0)msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRIG_FLAG] = SELF_TRIGGERED;
     msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRIG_FLAG] |= t3_buffer[t3_send].trig_flag&0xffff;
     if((cha & TRIG_10SEC) || cha & TRIG_CAL)
@@ -307,7 +305,7 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
       *(uint16_t *) &t3_buffer[t3_send].buf[EVENT_WINDOWS]; // use ch1 pre-trigger
     msg_start[AMSG_OFFSET_BODY + EB_OFFSET_SAMP_FREQ] = SAMPLING_FREQ;
     msg_start[AMSG_OFFSET_BODY + EB_OFFSET_CHAN_MASK] = chm;
-    msg_start[AMSG_OFFSET_BODY + EB_OFFSET_ADC_RES] = ADC_RESOLUTION(SERIAL_NUMBER(firmware_version));
+    msg_start[AMSG_OFFSET_BODY + EB_OFFSET_ADC_RES] = ADC_RESOLUTION;
     msg_start[AMSG_OFFSET_BODY + EB_OFFSET_TRACELENGTH] = trace_length; //sum of all channels
 #ifdef USE_EVENTBODY_VERSION
     msg_start[AMSG_OFFSET_BODY + EB_OFFSET_VERSION] = EVENTBODY_VERSION;
@@ -320,9 +318,6 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
     memcpy(&(msg_start[AMSG_OFFSET_BODY + EB_OFFSET_ADCBUFFER+(sz/2)]),
            &(t3_buffer[t3_send].quant1),14); // 2 floats + 1 32bit int + 1 16bit int
     sz+=14;
-    memcpy(&(msg_start[AMSG_OFFSET_BODY + EB_OFFSET_ADCBUFFER+(sz/2)]),
-           &(gpsbuf[prevgps].buf[PPS_GPS]),PPS_END-PPS_GPS); // lists from PPS
-    sz+=(PPS_END-PPS_GPS);
     memcpy(&(msg_start[AMSG_OFFSET_BODY + EB_OFFSET_ADCBUFFER+(sz/2)]),
            &(t3_buffer[t3_send].buf[EVENT_ADC]),2*trace_length); // event header
     sz+=trace_length;
@@ -363,19 +358,15 @@ int buffer_add_monitor(unsigned short *bf,int bfsize,short id) {
   bf[0] = 0;
   if(gpssent != *(shm_gps.next_read)) {
     gpssent = *(shm_gps.next_read);
-    if (firmware_version == 0)     
-      memcpy(&firmware_version,(const void *)&(gpsbuf[gpssent].buf[PPS_GPS+ID_GPS_VERSION-4]),4);
     bf[bffil] = 19;                                                // length
     bf[bffil+1] = DU_MONITOR;                                           // tag
       bf[bffil+2] =  id;//((id&0xff) | ((DU_HWNL&0xf)<<8) | ((FIRMWARE_VERSION(firmware_version&0x1f))<<11)); // id of the scope+HWtype +HWvers
     memcpy((void *)&bf[bffil+3],(void *)&(firmware_version),4);
     memcpy((void *)&bf[bffil+5],(void *)&(gpsbuf[gpssent].ts_seconds),4);
-    bf[bffil+7]= *(unsigned short *)&(gpsbuf[gpssent].buf[PPS_RATE]);
-    for(i=0;i<4;i++) bf[bffil+8+i] = gpsbuf[gpssent].rate[i];
-    memcpy((void *)&bf[bffil+12],&(gpsbuf[gpssent].buf[PPS_GPS+36]),4);
-    memcpy((void *)&bf[bffil+14],ch_volt,4);
-    memcpy((void *)&bf[bffil+16],ch_cur,4);
-    bf[bffil+18] = gpsbuf[gpssent].buf[PPS_STATUS];
+    bf[bffil+7]= *(unsigned short *)&(gpsbuf[gpssent].data[PPS_TRIG_RATE]);
+    //memcpy((void *)&bf[bffil+14],ch_volt,4);
+    //memcpy((void *)&bf[bffil+16],ch_cur,4);
+    bf[bffil+18] = gpsbuf[gpssent].data[PPS_STATSEC];
     //printf("CC: %g %g\n",*ch_volt,*ch_cur);
     //printf("Send monitor: %d %d %d %d\n",gpsbuf[gpssent].ts_seconds,bf[bffil+5],bf[bffil+6],bf[bffil+7]);
     bffil+=19;

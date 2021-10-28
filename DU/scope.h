@@ -46,6 +46,7 @@
 #define MAX_READOUT     (256 + DATA_MAX_SAMP*4) //!< Maximal raw event size
 
 /*----------------------------------------------------------------------*/
+#define TDAQ_BASE             0x80000000
 /* Register Definitions*/
 #define Reg_Dig_Control       0x000
 #define Reg_Trig_Enable       0x002
@@ -343,9 +344,9 @@ typedef struct
 
 // the routines
 
-void scope_set_parameters(uint16_t *data,int to_shadow);
-void scope_raw_write(uint16_t *buf,int nwords);
-int scope_raw_read(uint16_t *bf, int nwords);
+void scope_set_parameters(uint32_t reg_addr, uint32_t value,uint32_t to_shadow);
+void scope_raw_write(uint32_t reg_addr, uint32_t value);
+int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value);
 int scope_open();
 void scope_get_parameterlist(uint8_t list);
 void scope_reset();
@@ -373,5 +374,5 @@ void scope_initialize_calibration();
 int scope_calibrate_evt();
 void scope_close();
 void scope_create_memory();
-
+void scope_copy_shadow();
 //
