@@ -19,7 +19,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include<errno.h>
-#include"dudaq.h"
+#include"DU.h"
 #include "amsg.h"
 #include "scope.h"
 #include "ad_shm.h"
@@ -33,10 +33,10 @@ void scope_flush();
 shm_struct shm_ev; //!< shared memory containing all event info, including read/write pointers
 shm_struct shm_gps; //!< shared memory containing all GPS info, including read/write pointers
 shm_struct shm_cmd; //!< shared memory containing all command info, including read/write pointers
-shm_struct shm_cc; //!< shared memory containing all charge controller info, including read/write pointers
 EV_DATA *eventbuf;  //!< buffer that holds all triggered events (points to shared memory)
 GPS_DATA *gpsbuf; //!< buffer to hold GPS information
 extern int errno; //!< the number of the error encountered
+extern uint32_t *shadowlist;
 
 int du_port;       //!<port number on which to connect to the central daq
 
@@ -65,8 +65,6 @@ pid_t pid_socket;       //!< process id of the process reading/writing to the ce
 pid_t pid_charge;       //!< process id of the process reading/writing the charge controller (RS232)
 uint8_t stop_process=0; //!< after an interrupt this flag is set so that all forked processes are killed
 
-float *ch_volt; //!< pointer to voltage values read from CC
-float *ch_cur; //!< pointer to current values read from CC
 
 void chc_read();
 
@@ -74,7 +72,6 @@ void chc_read();
 void remove_shared_memory()
 {
     ad_shm_delete(&shm_ev);
-    ad_shm_delete(&shm_cc);
     ad_shm_delete(&shm_gps);
     ad_shm_delete(&shm_cmd);
 }
@@ -145,10 +142,10 @@ int set_socketoptions(int sock)
     option = 1048576;
     if(setsockopt (sock,SOL_SOCKET, SO_SNDBUF,&option,sizeof (int) )<0) return(-1);
     if(setsockopt (sock,SOL_SOCKET, SO_RCVBUF,&option,sizeof (int) )<0) return(-1);
-    timeout.tv_usec = 100000;
+    timeout.tv_usec = 10000;
     timeout.tv_sec = 0;
     if(setsockopt (sock,SOL_SOCKET, SO_RCVTIMEO,&timeout,sizeof (struct timeval) )<0) return(-1);
-    timeout.tv_usec = 100000;
+    timeout.tv_usec = 10000;
     timeout.tv_sec = 0;
     if(setsockopt (sock,SOL_SOCKET, SO_SNDTIMEO,&timeout,sizeof (struct timeval) )<0) return(-1);
     return(0);
@@ -200,7 +197,9 @@ int make_server_connection(int port)
   DU_comms = -1;
   ntry = 0;
   while(DU_comms < 0 && ntry <100000){
+    printf("Trying %d\n",ntry);
     DU_comms = accept(DU_socket, (struct sockaddr*)&DU_address,&DU_alength);
+    printf("After accept\n");
     if(DU_comms <0){
       if(errno != EWOULDBLOCK && errno != EAGAIN) return(-1); // an error if socket is not non-blocking
     }else{
@@ -248,6 +247,7 @@ int check_server_data()
   unsigned char *bf = (unsigned char *)DU_input;
   struct timeval timeout;
   
+  //printf("Checking Server data\n");
   timeout.tv_sec = 0;
   timeout.tv_usec=10;
   if(DU_comms>=0){
@@ -321,7 +321,7 @@ int check_server_data()
   }
   
   i = 1;
-  //printf("Message length = %d\n",DU_input[0]);
+  printf("Message length = %d\n",DU_input[0]);
   while(i<DU_input[0]-1){
     msg_start = &(DU_input[i]);
     msg_len = msg_start[AMSG_OFFSET_LENGTH];
@@ -353,29 +353,20 @@ int check_server_data()
         if(msg_tag == DU_INITIALIZE || msg_tag == DU_BOOT || msg_tag == DU_RESET) sleep(15);
         break;
       case DU_GETEVENT:                    // calculate sec and subsec, move the event to the t3 buffer
-      case DU_GET_EXT_SD_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
-      case DU_GET_EXT_GUI_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
-      case DU_GET_EXT_FD_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
-      case DU_GET_EXT_HEAT_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
       case DU_GET_MINBIAS_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
-      case DU_GET_EXT_AERALET_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
-      case DU_GET_EXT_AIRPLANE_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
       case DU_GET_RANDOM_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
-      case DU_GET_SCINTILLATOR_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
         if (msg_len == AMSG_OFFSET_BODY + 3 + 1) {
           getevt = (du_geteventbody *)&msg_start[AMSG_OFFSET_BODY];
           ssec = (getevt->NS3+(getevt->NS2<<8)+(getevt->NS1<<16));
-          printf("Requesting Event %d %d %d\n",getevt->event_nr,getevt->sec,ssec);
+          //printf("Requesting Event %d %d %d\n",getevt->event_nr,getevt->sec,ssec);
           trflag = 0;
-          if(msg_tag == DU_GET_EXT_SD_EVENT)trflag = TRIGGER_T3_EXT_SD;
-          if(msg_tag == DU_GET_EXT_GUI_EVENT)trflag = TRIGGER_T3_EXT_GUI;
-          if(msg_tag == DU_GET_EXT_FD_EVENT)trflag = TRIGGER_T3_EXT_FD;
-          if(msg_tag == DU_GET_EXT_HEAT_EVENT)trflag = TRIGGER_T3_EXT_HEAT;
           if(msg_tag == DU_GET_MINBIAS_EVENT)trflag = TRIGGER_T3_MINBIAS;
-          if(msg_tag == DU_GET_EXT_AERALET_EVENT)trflag = TRIGGER_T3_EXT_AERALET;
-          if(msg_tag == DU_GET_EXT_AIRPLANE_EVENT)trflag = TRIGGER_T3_EXT_AIRPLANE;
           if(msg_tag == DU_GET_RANDOM_EVENT)trflag = TRIGGER_T3_RANDOM;
           buffer_to_t3(getevt->event_nr,getevt->sec,ssec,trflag);
+          memcpy((void *)&(shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_write)+1]),(void *)msg_start,2*msg_start[AMSG_OFFSET_LENGTH]);
+          shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_write)] = 1;
+          *shm_cmd.next_write = *shm_cmd.next_write + 1;
+          if(*shm_cmd.next_write >= *shm_cmd.nbuf) *shm_cmd.next_write = 0;
         }
         else
           printf("Error: message DU_GETEVENT was wrong length (%d)\n", msg_len);
@@ -517,6 +508,7 @@ int send_t3_event()
   }
   buffer_add_t3(&(DU_output[1]),MAX_OUT_MSG-3,station_id);
   if(DU_output[1] == 0) return(0); // nothing to do
+  //printf("Sending T3 event\n");
   DU_output[0] = DU_output[1]+2;
   DU_output[DU_output[0]-1] = GRND1;
   DU_output[DU_output[0]] = GRND2;
@@ -565,9 +557,11 @@ void du_scope_check_commands()
   uint16_t *msg_start;
   uint16_t msg_tag,msg_len;
   uint32_t il;
+  uint16_t *sl = (uint16_t *)shadowlist;
 
   //printf("Check cmds %d\n",*shm_cmd.next_read);
   while(((shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)]) &1) ==  1){ // loop over the T3 input
+    printf("Received command\n");
     msg_start = (uint16_t *)(&(shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)+1]));
     msg_len = msg_start[AMSG_OFFSET_LENGTH];
     msg_tag = msg_start[AMSG_OFFSET_TAG];
@@ -581,11 +575,11 @@ void du_scope_check_commands()
         printf("End Initialize %d\n",msg_len);
         il = 3;
         while(il<msg_len){
-          printf("Set parameters %x\n",msg_start[il]);
-          if(msg_start[il]>0 && msg_start[il+1]<=PARAM_LIST_MAXSIZE)
-            scope_set_parameters(&msg_start[il],1);
-          il+=(msg_start[il+1])/2;
+          sl[msg_start[1]>>1] = msg_start[2];
+          il+=3;
         }
+        scope_copy_shadow();
+        scope_create_memory();
         break;
       case DU_START:
         printf("Trying to start a run\n");
@@ -598,6 +592,9 @@ void du_scope_check_commands()
         break;
       case DU_CALIBRATE:                 // calibrate the scope
         scope_calibrate();
+        break;
+      case DU_GETEVENT:                 // request event
+        printf("Requesting a Full event\n");
         break;
       default:
         printf("Received unimplemented message %d\n",msg_tag);
@@ -628,17 +625,8 @@ void du_scope_check_commands()
 void du_scope_main()
 {
   int i;
-#ifdef TRIG_INT
-  unsigned short ctrllist[9]={0x0199,0x12, CTRL_SEND_EN|CTRL_PPS_EN,//|0x8000,
-    0x0f00|TRIG_EXT|TRIG_10SEC, 0xff0f,0x10,0,0,0x6666};
-#else
-  unsigned short ctrllist[9]={0x0199,0x12,
-    CTRL_SEND_EN|CTRL_PPS_EN,//|0x8000,
-    0x0, 0x0f,100,0,0,0x6666};
-#endif
   
   scope_open();           // open connection to the scope
-  scope_set_parameters(ctrllist,1);
   scope_stop_run(); // we will not start in running mode for now
   run = 0; // this is because of recovery from crashes
   while(stop_process == 0){
@@ -716,15 +704,17 @@ void du_socket_main(int argc,char **argv)
         if(du_port == -1) du_port = DU_PORT;
     }
 #endif
-  printf("Opening Connection\n");
+  printf("Opening Connection %d\n",du_port);
   if(make_server_connection(du_port) < 0) {  // connect to DAQ
     printf("Cannot open sockets\n");
     exit(-1);
   }
+  printf("Connection opened\n");
   gettimeofday(&tprev,&tzone);
   tcontact.tv_sec = tprev.tv_sec;
   tcontact.tv_usec = tprev.tv_usec;
   while(stop_process == 0){
+    //printf("In the main loop\n");
     gettimeofday(&tnow,&tzone);
     tdif = (float)(tnow.tv_sec-tprev.tv_sec)+(float)( tnow.tv_usec-tprev.tv_usec)/1000000.;
     if(tdif>=0.3 || prev_msg == 1 ){                          // every 0.3 seconds, this is really only needed for phase2
@@ -775,22 +765,6 @@ void du_socket_main(int argc,char **argv)
   }
 }
 
-/*!
- \fn void du_charge_main()
- * A continuous reading of the charge controller.
- *
- * Between readings, the routine sleeps for 30 seconds
- *
- * \author C. Timmermans
- */
-void du_charge_main()
-{
-  while(1){
-    chc_read();
-    sleep(30);
-  }
-}
-
 /*! 
  \fn int main(int argc, char **argv)
  * main program:
@@ -800,7 +774,6 @@ void du_charge_main()
  * - Create child processes for:
  *   - Reading/writing IP-sockets
  *   - Reading/writing the scope
- *   - Reading the charge controller info through RS232
  * - Restart these processes when needed
  * - After a stop is requested through an interrupt, clean up shared memories
  *
@@ -841,15 +814,8 @@ int main(int argc, char **argv)
         printf("Cannot create CMD shared memory !!\n");
         exit(-1);
     }
-    if(ad_shm_create(&shm_cc,2,2) <0){//2 floats
-        printf("Cannot create CC shared memory !!\n");
-        exit(-1);
-    }
-    ch_volt = (float *)&(shm_cc.Ubuf[0]);
-    ch_cur = (float *)&(shm_cc.Ubuf[2]);
-    if((pid_scope = fork()) == 0) du_scope_main();
+  if((pid_scope = fork()) == 0) du_scope_main();
     if((pid_socket = fork()) == 0) du_socket_main(argc,argv);
-    if((pid_charge = fork()) == 0) du_charge_main();
     while(stop_process == 0){
         pid = waitpid (WAIT_ANY, &status, 0);
         if(pid == pid_scope && stop_process == 0) {
@@ -857,9 +823,6 @@ int main(int argc, char **argv)
         }
         if(pid == pid_socket && stop_process == 0) {
             if((pid_socket = fork()) == 0) du_socket_main(argc,argv);
-        }
-        if(pid == pid_charge && stop_process == 0) {
-            if((pid_charge = fork()) == 0) du_charge_main();
         }
         sleep(1);
     }
