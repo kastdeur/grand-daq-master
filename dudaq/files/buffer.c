@@ -34,7 +34,7 @@ print_message(AMSG *msg) prints the complete content of a message (hex and dec)!
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "DU.h"
+#include "dudaq.h"
 #include "amsg.h"
 #include "ad_shm.h"
 #include "scope.h"

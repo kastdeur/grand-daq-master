@@ -19,7 +19,7 @@
 #include <arpa/inet.h>
 #include <signal.h>
 #include<errno.h>
-#include"DU.h"
+#include"dudaq.h"
 #include "amsg.h"
 #include "scope.h"
 #include "ad_shm.h"
