@@ -22,6 +22,8 @@
 #ifdef Fake
 #include <math.h>
 #include <sys/time.h>
+#else
+#include <sys/mman.h>
 #endif
 #include <string.h>
 #include<errno.h>
@@ -131,8 +133,8 @@ int scope_open()        // Is this needed?
   page_offset = addr - page_addr;
   
   axi_ptr=mmap(NULL,page_size,PROT_READ|PROT_WRITE, MAP_SHARED,dev,page_addr);
-  if ((int)axi_ptr == -1) {
-    perror(argv[0]);
+  if ((long)axi_ptr == -1) {
+    perror("opening scope\n");
     exit(-1);
   }
   
@@ -571,56 +573,32 @@ int scope_read(int ioff)
   int rread,nread,ntry;
   int ir;
   unsigned char rawbuf[5]={0,0,0,0,0};
+  uint32_t Is_Data;
   
 #ifdef Fake
   return(scope_fake_event(ioff));
 #else
-  scope_raw_read(statusbuffer,2);
-  if((statusbuffer[4]&(GENSTAT_PPSFIFO>>16)) == 0){
-    scope_raw_write(Reg_GenControl,0,2);
+  scope_raw_read(Reg_Data,&Is_Data);
+  if((Is_Data&(GENSTAT_PPSFIFO>>16)) == 0){
+    scope_raw_write(Reg_GenControl,0);
     scope_read_pps();
   }
-  do{                           // flush scope until start-of-message
-    //nread = scope_raw_read(rawbuf,1);
-  } while(rawbuf[0] != MSG_START && nread>0);
-  
-  if(nread == 0 || rawbuf[0] != MSG_START) {
-    return(0);                              // no data (should never happen)
-  }
-  if(rawbuf[0] != MSG_START && nread>0){    // not a start of message
-    printf("Not a message start %x\n",rawbuf[0]);
-    return(-1);
-  }
-  ntry = 0;
-  // do{                           // read the identifier of the message (data-type)
-  //nread = scope_raw_read(&(rawbuf[1]),1);
-  if(!nread) {
-    usleep(10);
-    ntry++;
-  }
-  //}while(nread==0 &&ntry<MAXTRY);   // second word should come in within a short time
-  if(nread ==0) {
-    printf("Failed to read a second word\n");
-    return(-2);                     // No identifier after start-of-message
-  }
+
   // move data in the shadowlist
-  if(rawbuf[1]<PARAM_NUM_LIST){
+/*  if(rawbuf[1]<PARAM_NUM_LIST){
     // move the parameters in the correct shadow list.
     // TODO: they should first be compared!
     //scope_raw_read((unsigned char *)(&rawbuf[3]),2);
     if(rawbuf[3] == MSG_END || rawbuf[4] == MSG_END) return(-4);
     totlen = (rawbuf[4]<<8)+rawbuf[3];
   }
-  else if(rawbuf[1] == ID_PARAM_PPS) {
-    ir = scope_read_pps();
-    //scope_calc_evnsec();
-    return(ir);
-  }
   else if(rawbuf[1] == ID_PARAM_EVENT) return(scope_read_event(ioff));
   else if(rawbuf[1] == ID_PARAM_ERROR) return(scope_read_error());
   printf("ERROR Identifier = %x\n",rawbuf[1]);
   return(-3);                               // bad identifier read
+ */
 #endif
+  return(0);
 }
 
 /*!
