@@ -190,6 +190,7 @@ void scope_start_run()
  */
 void scope_stop_run()
 {
+  printf("Scope stop run\n");
   scope_set_parameters(Reg_Dig_Control,shadowlist[Reg_Dig_Control>>2] & (~CTRL_PPS_EN & ~CTRL_SEND_EN ),1);
   seczero = 0;
   scope_flush();
@@ -271,7 +272,7 @@ void scope_create_memory(){
     free(evtbuf);
   }
   printf("Creating a buffer of size %d\n",BUFSIZE*evtlen);
-  evtbuf = (uint16_t *)malloc(BUFSIZE*evtlen*sizeof(uint16_t));
+  //evtbuf = (uint16_t *)malloc(BUFSIZE*evtlen*sizeof(uint16_t));
 }
 
 /*!

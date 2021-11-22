@@ -180,7 +180,7 @@ void du_connect()
   gettimeofday(&tnow,&tzone);
   for(i=0;i<tot_du;i++){ // loop over all stations
     if(DUinfo[i].DUsock >= 0) continue; // nothing needs to be done
-    //printf("Trying to connect to socket %d\n",DUinfo[i].DUport);
+    printf("Trying to connect to socket %d\n",DUinfo[i].DUport);
     //1. Create the socket
     DUinfo[i].DUsock =  socket ( PF_INET, SOCK_STREAM, 0 );
     DUinfo[i].LSTconnect = tnow.tv_sec;

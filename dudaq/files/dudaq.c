@@ -36,7 +36,7 @@ shm_struct shm_cmd; //!< shared memory containing all command info, including re
 EV_DATA *eventbuf;  //!< buffer that holds all triggered events (points to shared memory)
 GPS_DATA *gpsbuf; //!< buffer to hold GPS information
 extern int errno; //!< the number of the error encountered
-extern uint32_t *shadowlist;
+extern uint32_t shadowlist[Reg_End>>2];
 
 int du_port;       //!<port number on which to connect to the central daq
 
@@ -196,12 +196,15 @@ int make_server_connection(int port)
   }
   DU_comms = -1;
   ntry = 0;
-  while(DU_comms < 0 && ntry <100000){
+  while(DU_comms < 0 && ntry <10){
     printf("Trying %d\n",ntry);
     DU_comms = accept(DU_socket, (struct sockaddr*)&DU_address,&DU_alength);
     printf("After accept\n");
     if(DU_comms <0){
-      if(errno != EWOULDBLOCK && errno != EAGAIN) return(-1); // an error if socket is not non-blocking
+      if(errno != EWOULDBLOCK && errno != EAGAIN) {
+	printf("Return an error\n");
+	return(-1); // an error if socket is not non-blocking
+      }
     }else{
       FD_ZERO(&sockset);
       FD_SET(DU_comms, &sockset);
@@ -572,12 +575,12 @@ void du_scope_check_commands()
       case DU_INITIALIZE:
         printf("Initializing scope\n");
         scope_initialize(&station_id); // resets and initialize scope
-        printf("End Initialize %d\n",msg_len);
         il = 3;
         while(il<msg_len){
-          sl[msg_start[1]>>1] = msg_start[2];
+          if(msg_start[il+1]<Reg_End) sl[msg_start[il+1]>>1] = msg_start[il+2];
+	  printf("%x %x %x\n",msg_start[il+1],msg_start[il+1]>>1,msg_start[il+2]);
           il+=3;
-        }
+	}  
         scope_copy_shadow();
         scope_create_memory();
         break;
