@@ -558,7 +558,7 @@ int send_t3_event()
 void du_scope_check_commands()
 {
   uint16_t *msg_start;
-  uint16_t msg_tag,msg_len;
+  uint16_t msg_tag,msg_len,addr;
   uint32_t il;
   uint16_t *sl = (uint16_t *)shadowlist;
 
@@ -576,9 +576,11 @@ void du_scope_check_commands()
         printf("Initializing scope\n");
         scope_initialize(&station_id); // resets and initialize scope
         il = 3;
-        while(il<msg_len){
-          if(msg_start[il+1]<Reg_End) sl[msg_start[il+1]>>1] = msg_start[il+2];
-	  printf("%x %x %x\n",msg_start[il+1],msg_start[il+1]>>1,msg_start[il+2]);
+        while(il<msg_len){ //word swapping
+	  addr = msg_start[il+1]>>1;
+	  //if((addr&1))addr -=1;
+	  //else addr+=1;
+          if(msg_start[il+1]<Reg_End) sl[addr] = msg_start[il+2];
           il+=3;
 	}  
         scope_copy_shadow();

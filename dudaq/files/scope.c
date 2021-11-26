@@ -102,7 +102,7 @@ int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value) //new, reading from A
   return(1);
 }
 /*!
- \func void scope_flush()
+ \func void scope_flush)
  \brief empty routine
  */
 void scope_flush()
@@ -233,6 +233,7 @@ void scope_print_parameters(int32_t list) //to be checked
 void scope_copy_shadow()
 {
   for(int i=0;i<Reg_End;i+=4){
+    printf("Set Param %x %x\n",i,shadowlist[i>>2]);
     scope_set_parameters(i,shadowlist[i>>2],0);
   }
   
@@ -271,8 +272,8 @@ void scope_create_memory(){
   if(evtbuf != NULL){
     free(evtbuf);
   }
-  printf("Creating a buffer of size %d\n",BUFSIZE*evtlen);
-  //evtbuf = (uint16_t *)malloc(BUFSIZE*evtlen*sizeof(uint16_t));
+  //printf("Creating a buffer of size %d\n",BUFSIZE*evtlen);
+  evtbuf = (uint16_t *)malloc(BUFSIZE*evtlen*sizeof(uint16_t));
 }
 
 /*!
@@ -459,54 +460,40 @@ int scope_fake_event(int32_t ioff)
  */
 int scope_read_event(int32_t ioff)
 {
-  int32_t rread,nread,ntry;
-  struct tm tt;
-  uint16_t length;
   int next_write = *(shm_ev.next_write);
-  eventbuf[next_write].buf[0] = MSG_START;
-  eventbuf[next_write].buf[1] = ID_PARAM_EVENT;
-  //scope_raw_read(&(eventbuf[next_write].buf[2]),2);
-  nread = 4; // length andA4 words
-  length = *(unsigned short *)&(eventbuf[next_write].buf[2]);
-  if(length>MAX_READOUT) return(-10); // too long
-  ntry = 0;
-  do{            //while absolutely needed as blocks are read out
-    //rread = scope_raw_read(&(eventbuf[next_write].buf[nread]),length-nread);
-    if(!rread) { usleep(10); ntry++; }
-    else {ntry = 0; nread+=rread;}
-  }while(nread <length &&ntry<MAXTRY);              // until the end or timeout
-  if(nread < length) {
-    printf("nread = %d length = %d rread = %d errno = %d\n",nread,length,rread,errno);
-    return(-11); // an error if not all is read
+  int offset = next_write*evtlen;
+  int32_t rread,nread,ntry;
+  uint32_t Is_Data,tbuf,*ebuf;
+  struct tm tt;
+  int length;
+
+  scope_raw_write(Reg_GenControl,GENCTRL_EVTREAD);
+  scope_raw_read(Reg_GenStatus,&Is_Data);
+  if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
+    scope_raw_read(Reg_Data,&tbuf);
+  } else return(0);
+  if((tbuf>>16) == 0xADC0 || evtbuf == NULL) length = (tbuf&0xffff);
+  else length = -1;
+  if(length>0){
+    ebuf = (uint32_t *)&evtbuf[offset];
+    *ebuf++ = tbuf;
+    printf("Reading %d words %08x\n",length,tbuf);
+    while(length>0){
+      scope_raw_read(Reg_Data,ebuf++);
+      length--;
+    }
+  } else{ //flushing, but why???
+    length = 1000;
+    while(length>0 && ((Is_Data&GENSTAT_EVTFIFO) == 0)){
+      scope_raw_read(Reg_Data,&tbuf);
+      length--;
+      scope_raw_read(Reg_GenStatus,&Is_Data);
+    }
+    return(-1);
   }
-  eventbuf[next_write].evsize = (eventbuf[next_write].buf[EVENT_BCNT]+(eventbuf[next_write].buf[EVENT_BCNT+1]<<8)); //the total length in bytes from scope
-  //scope_print_event(eventbuf[next_write].buf);
-  scope_fill_ph(eventbuf[next_write].buf);
-  tt.tm_sec = eventbuf[next_write].buf[EVENT_GPS+6];    // Convert GPS in a number of seconds
-  tt.tm_min = eventbuf[next_write].buf[EVENT_GPS+5];
-  tt.tm_hour = eventbuf[next_write].buf[EVENT_GPS+4];
-  tt.tm_mday = eventbuf[next_write].buf[EVENT_GPS+3];
-  tt.tm_mon = eventbuf[next_write].buf[EVENT_GPS+2]-1;
-  tt.tm_year = *(short *)&(eventbuf[next_write].buf[EVENT_GPS]) - 1900;
-  eventbuf[next_write].ts_seconds = (unsigned int)timegm(&tt);
-  // Timestamp in Unix format
-  // Convert UNIX time to GPS time in v3
-  // NOTE: difftime() is apparently broken in this uclibc
-  eventbuf[next_write].ts_seconds -= (unsigned int)GPS_EPOCH_UNIX;
-  //eventbuf[next_write].ts_seconds -= leap_sec;
-  // time in GPS epoch CT 20110630 fixed number!
-  eventbuf[next_write].CTD = *(int *)&(eventbuf[next_write].buf[EVENT_CTD]);
-  // fill the clock tick of the event
-  eventbuf[next_write].t2_nanoseconds = (int)(1.E9*eventbuf[next_write].CTD/(*(uint32_t *)&gpsbuf[prevgps].data[PPS_CTP]));
-  eventbuf[next_write].t3_nanoseconds = 0;  // the real time is not (yet) known
-  eventbuf[next_write].t3calc = 0;          // and has not yet been calculated
-  // and the trigger setting in gpsdata
-  //
-  if(gpsbuf[prevgps].data[PPS_CTP] != 0 &&
-     eventbuf[next_write].t2_nanoseconds != -1) {
-    next_write +=ioff;   // update the buffer counter if needed
-  }
-  if(next_write>=BUFSIZE) next_write = 0;       // remember: eventbuf is a circular buffer
+  next_write +=ioff;
+  if(next_write>=BUFSIZE) next_write = 0; // remember: circular buffer
+  //printf("End read evt\n");
   *(shm_ev.next_write) = next_write;
   return(SCOPE_EVENT);                  // success!
 }
@@ -521,30 +508,35 @@ int scope_read_event(int32_t ioff)
  */
 int32_t scope_read_pps()  //27/7/2012 ok
 {
+  int offset = evgps*WCNT_PPS;
+  uint32_t Is_Data,tbuf,*pbuf,ctp;
+  int length;
   
-  //# if defined(CALFIRST)
-  //if(*(short *)&(gpsbuf[evgps].buf[PPS_RATE]) == 0)   scope_print_pps(gpsbuf[evgps].buf);
-  //#endif
-  //ct 20140928 scope_fill_shadow(gpsbuf[evgps].buf);         // fill all the shadow config. lists
-  /*  tt.tm_sec = gpsbuf[evgps].buf[PPS_TIME+6];    // convert GPS into a number of seconds
-   tt.tm_min = gpsbuf[evgps].buf[PPS_TIME+5];
-   tt.tm_hour = gpsbuf[evgps].buf[PPS_TIME+4];
-   tt.tm_mday = gpsbuf[evgps].buf[PPS_TIME+3];
-   tt.tm_mon = gpsbuf[evgps].buf[PPS_TIME+2]-1;
-   tt.tm_year = *(short *)(&gpsbuf[evgps].buf[PPS_TIME])-1900;
-   gpsbuf[evgps].ts_seconds = (unsigned int)timegm(&tt);
-   if(setsystime == 0){
-   tp.tv_sec = gpsbuf[evgps].ts_seconds;
-   settimeofday(&tp,NULL);
-   setsystime = 1;
-   }
-   // Timestamp in Unix format
-   // Convert UNIX time to GPS time in v3
-   // NOTE: difftime() is apparently broken in this uclibc
-   gpsbuf[evgps].ts_seconds -= (unsigned int)GPS_EPOCH_UNIX;*/
-  //gpsbuf[evgps].ts_seconds -= leap_sec;
-  //printf("PPS Time stamp = %d (%d)\n",gpsbuf[evgps].ts_seconds,GPS_EPOCH_UNIX);
-  // time in GPS epoch CT 20110630 FIXED Number
+  scope_raw_read(Reg_GenStatus,&Is_Data);
+  scope_raw_write(Reg_GenControl,0);
+  if((Is_Data&(GENSTAT_PPSFIFO)) == 0){
+    scope_raw_read(Reg_Data,&tbuf);
+    if((tbuf>>16) != 0xFACE){
+      length = 1000;
+      while(length>0 && ((Is_Data&GENSTAT_PPSFIFO) == 0)){
+	scope_raw_read(Reg_Data,&tbuf);
+	length--;
+	scope_raw_read(Reg_GenStatus,&Is_Data);
+      }
+      return(-1);
+    }
+  }
+  pbuf = (uint32_t *)&ppsbuf[offset];
+  *pbuf++ = tbuf;
+  for(length = 1;length<WCNT_PPS;length++){
+    scope_raw_read(Reg_Data,pbuf++);
+  }
+  ctp = *(uint32_t *)&ppsbuf[offset+PPS_CTP];
+  ctp = ctp&0x7fffffff;
+  printf("PPS %d %u %d \n",evgps,ctp ,*(int32_t *)&ppsbuf[offset+PPS_OFFSET]);
+  prevgps = evgps;
+  evgps++;
+  if(evgps>=GPSSIZE)evgps = 0;
   
   return(SCOPE_GPS);
 }
@@ -573,16 +565,17 @@ int scope_read(int ioff)
   unsigned short int totlen;
   int rread,nread,ntry;
   int ir;
-  unsigned char rawbuf[5]={0,0,0,0,0};
   uint32_t Is_Data;
   
 #ifdef Fake
   return(scope_fake_event(ioff));
 #else
-  scope_raw_read(Reg_Data,&Is_Data);
-  if((Is_Data&(GENSTAT_PPSFIFO>>16)) == 0){
-    scope_raw_write(Reg_GenControl,0);
+  scope_raw_read(Reg_GenStatus,&Is_Data);
+  if((Is_Data&(GENSTAT_PPSFIFO)) == 0){
     scope_read_pps();
+  }
+  if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
+    scope_read_event(ioff);
   }
 
   // move data in the shadowlist

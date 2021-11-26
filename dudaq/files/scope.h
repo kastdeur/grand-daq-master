@@ -149,6 +149,7 @@
 #define GENSTAT_PPSFIFO  (1<<24)
 #define GENSTAT_EVTFIFO  (1<<25)
 #define GENSTAT_DMAFIFO  (1<<26)
+#define GENCTRL_EVTREAD  (1<<25)
 
 #define TRIG_10SEC    (1 << 5)
 #define TRIG_CAL      (1 << 6)
