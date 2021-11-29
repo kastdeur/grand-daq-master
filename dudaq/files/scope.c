@@ -42,10 +42,15 @@ DEV dev = 0;                    //!< Device id
 void *axi_ptr;
 uint32_t page_offset;
 
-extern shm_struct shm_ev,shm_gps;
-extern EV_DATA *eventbuf;      // buffer to hold the events
+extern int station_id;
+extern shm_struct shm_ev;
+uint16_t *t3buf;
+extern shm_struct shm_gps,shm_ts;
+//extern EV_DATA *eventbuf;      // buffer to hold the events
 extern GPS_DATA *gpsbuf;
+extern TS_DATA *timestampbuf;
 uint16_t *evtbuf=NULL;
+int ptr_evt=0;
 uint16_t ppsbuf[WCNT_PPS*GPSSIZE];
 int n_evt = 0;
 
@@ -170,7 +175,8 @@ void scope_get_parameterlist(uint8_t list)
  */
 void scope_reset()
 {
-  scope_flush(); // no soft reset implemented...
+  scope_raw_write(Reg_Dig_Control,0x00004000); // reset firmware, but this
+  scope_raw_write(Reg_Dig_Control,0x00000000); // does not clear registers
 }
 
 /*!
@@ -233,7 +239,7 @@ void scope_print_parameters(int32_t list) //to be checked
 void scope_copy_shadow()
 {
   for(int i=0;i<Reg_End;i+=4){
-    printf("Set Param %x %x\n",i,shadowlist[i>>2]);
+    //printf("Set Param %x %x\n",i,shadowlist[i>>2]);
     scope_set_parameters(i,shadowlist[i>>2],0);
   }
   
@@ -256,8 +262,8 @@ void scope_init_shadow()
  */
 void scope_initialize() //tested 24/7/2012
 {
-  scope_init_shadow();
   scope_reset();    // reset the scope
+  scope_init_shadow();
   scope_stop_run(); //disable the output
 }
 
@@ -274,6 +280,8 @@ void scope_create_memory(){
   }
   //printf("Creating a buffer of size %d\n",BUFSIZE*evtlen);
   evtbuf = (uint16_t *)malloc(BUFSIZE*evtlen*sizeof(uint16_t));
+  ptr_evt = 0;
+  t3buf = (uint16_t *)shm_ev.Ubuf; 
 }
 
 /*!
@@ -329,7 +337,7 @@ int scope_fake_gps()
   ppsbuf[offset+PPS_DAYMONTH] = 100*now->tm_mday+now->tm_mon+1;
   ppsbuf[offset+PPS_MINHOUR] = 100*now->tm_min+now->tm_hour;
   ppsbuf[offset+PPS_STATSEC] = now->tm_sec;
-  printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
+  //printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
   prevgps = evgps;
   evgps++;
   if(evgps>=GPSSIZE)evgps = 0;
@@ -359,28 +367,14 @@ int scope_fake_event(int32_t ioff)
        ((tv.tv_sec == tvFake.tv_sec)&&(tv.tv_usec < tvFake.tv_usec))) return(0);
   }
   n_evt++;
-  eventbuf[next_write].buf[0] = MSG_START;
-  eventbuf[next_write].buf[1] = ID_PARAM_EVENT;
-  eventbuf[next_write].buf[EVENT_TRIGMASK] =0;
-  eventbuf[next_write].ts_seconds = tvFake.tv_sec;
   nanoseconds = 1000*tvFake.tv_usec;
   if(Send_10 == 0){
-    eventbuf[next_write].buf[EVENT_TRIGMASK] |=0x20;
     nanoseconds = 100*(((double)(random())/(double)MAXRAND));
   }else
     nanoseconds += 1000*(((double)(random())/(double)MAXRAND)); //add random ns
-  eventbuf[next_write].t2_nanoseconds = nanoseconds;
-  eventbuf[next_write].t3_nanoseconds =     eventbuf[next_write].t2_nanoseconds;
-  eventbuf[next_write].t3calc =     1;
-  eventbuf[next_write].CTD = eventbuf[next_write].t2_nanoseconds/5; //clock tick
-  eventbuf[next_write].CTP = 200000000; //clock freq.
-  eventbuf[next_write].quant1 = 0.;
-  eventbuf[next_write].quant2 = 0.;
-  eventbuf[next_write].sync = 0;
-  eventbuf[next_write].evsize = 70; //only header for now (in bytes)
   evtbuf[offset+EVT_LENGTH] = evtlen;
   evtbuf[offset+EVT_ID] = MAGIC_EVT;
-  evtbuf[offset+EVT_HARDWARE] = 1;
+  evtbuf[offset+EVT_HARDWARE] = station_id;
   evtbuf[offset+EVT_HDRLEN] = HEADER_EVT;
   memcpy(&evtbuf[offset+EVT_HDRLEN],&tvFake.tv_sec,4);
   memcpy(&evtbuf[offset+EVT_HDRLEN],&nanoseconds,4);
@@ -460,12 +454,15 @@ int scope_fake_event(int32_t ioff)
  */
 int scope_read_event(int32_t ioff)
 {
-  int next_write = *(shm_ev.next_write);
-  int offset = next_write*evtlen;
+  static uint16_t evtnr=0;
+  int offset = ptr_evt*evtlen;
   int32_t rread,nread,ntry;
   uint32_t Is_Data,tbuf,*ebuf;
   struct tm tt;
   int length;
+  double fracsec;
+  uint32_t *sec,*nanosec;
+  int next_write = *(shm_ts.next_write);
 
   scope_raw_write(Reg_GenControl,GENCTRL_EVTREAD);
   scope_raw_read(Reg_GenStatus,&Is_Data);
@@ -474,16 +471,43 @@ int scope_read_event(int32_t ioff)
   } else return(0);
   if((tbuf>>16) == 0xADC0 || evtbuf == NULL) length = (tbuf&0xffff);
   else length = -1;
-  if(length>0){
+  if(length>0 &&evtbuf != NULL){
     ebuf = (uint32_t *)&evtbuf[offset];
     *ebuf++ = tbuf;
-    printf("Reading %d words %08x\n",length,tbuf);
     while(length>0){
       scope_raw_read(Reg_Data,ebuf++);
       length--;
     }
+    evtbuf[offset+EVT_HDRLEN] = HEADER_EVT;
+    sec = (uint32_t *)&evtbuf[offset+EVT_SECOND];
+    tt.tm_sec = (evtbuf[offset+EVT_STATSEC]&0xff)-evtbuf[offset+EVT_LEAP];    // Convert GPS in a number of seconds
+    tt.tm_min = (evtbuf[offset+EVT_MINHOUR]>>8)&0xff;
+    tt.tm_hour = (evtbuf[offset+EVT_MINHOUR])&0xff;
+    tt.tm_mday = (evtbuf[offset+EVT_DAYMONTH]>>8)&0xff;
+    tt.tm_mon = (evtbuf[offset+EVT_DAYMONTH]&0xff)-1;
+    tt.tm_year = evtbuf[offset+EVT_YEAR] - 1900;
+    //printf("Event timestamp %02d/%02d/%04d %2d:%2d:%2d\n",tt.tm_mday,tt.tm_mon+1,tt.tm_year+1900,tt.tm_hour,tt.tm_min,tt.tm_sec);
+    *sec = (unsigned int)timegm(&tt);    
+    fracsec = (double)(*(uint32_t *)&evtbuf[offset+EVT_CTD])/(double)(*(uint32_t *)&evtbuf[offset+EVT_CTP]);
+    nanosec = (uint32_t *)&evtbuf[offset+EVT_NANOSEC];
+    *nanosec = 1.E9*fracsec;
+    evtbuf[offset+EVT_TRIGGERPOS] = shadowlist[Reg_Time1_Pre>>1]+shadowlist[Reg_Time_Common>>1];
+    evtbuf[offset+EVT_ID] = evtnr++;
+    evtbuf[offset+EVT_HARDWARE] = station_id;
+    //printf("Reading event %08x %d %u.%09d %g\n",tbuf,evtbuf[EVT_STATSEC]&0xff,*sec,*nanosec,fracsec);
+    timestampbuf[next_write].ts_seconds = *sec;
+    timestampbuf[next_write].ts_nanoseconds = *nanosec;
+    timestampbuf[next_write].event_nr = evtbuf[offset+EVT_ID];
+    timestampbuf[next_write].trigmask = evtbuf[offset+EVT_TRIG_PAT];
+    next_write+=ioff;
+    if(next_write >=BUFSIZE) next_write = 0;
+    *shm_ts.next_write = next_write;
+    ptr_evt +=ioff;
+    if(ptr_evt>=BUFSIZE) ptr_evt = 0; // remember: circular buffer
+    return(SCOPE_EVENT);                  // success!
   } else{ //flushing, but why???
-    length = 1000;
+    if(length<0) length = 10000;
+    //printf("Flushing\n");
     while(length>0 && ((Is_Data&GENSTAT_EVTFIFO) == 0)){
       scope_raw_read(Reg_Data,&tbuf);
       length--;
@@ -491,11 +515,6 @@ int scope_read_event(int32_t ioff)
     }
     return(-1);
   }
-  next_write +=ioff;
-  if(next_write>=BUFSIZE) next_write = 0; // remember: circular buffer
-  //printf("End read evt\n");
-  *(shm_ev.next_write) = next_write;
-  return(SCOPE_EVENT);                  // success!
 }
 
 
@@ -533,7 +552,8 @@ int32_t scope_read_pps()  //27/7/2012 ok
   }
   ctp = *(uint32_t *)&ppsbuf[offset+PPS_CTP];
   ctp = ctp&0x7fffffff;
-  printf("PPS %d %u %d \n",evgps,ctp ,*(int32_t *)&ppsbuf[offset+PPS_OFFSET]);
+  //printf("PPS %d %u %02d:%02d:%02d-%d %g\n",evgps,ctp ,(ppsbuf[offset+PPS_MINHOUR])&0xff,(ppsbuf[offset+PPS_MINHOUR]>>8)&0xff,ppsbuf[offset+PPS_STATSEC]&0xff,
+  // ppsbuf[offset+PPS_LEAP],*(float *)&ppsbuf[offset+PPS_OFFSET]);
   prevgps = evgps;
   evgps++;
   if(evgps>=GPSSIZE)evgps = 0;
@@ -574,6 +594,8 @@ int scope_read(int ioff)
   if((Is_Data&(GENSTAT_PPSFIFO)) == 0){
     scope_read_pps();
   }
+  scope_raw_write(Reg_GenControl,GENCTRL_EVTREAD);
+  scope_raw_read(Reg_GenStatus,&Is_Data);
   if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
     scope_read_event(ioff);
   }
@@ -618,7 +640,7 @@ int scope_run_read()
   iret = scope_read(1);
   if((seczero !=szerop && seczero>11)) {
     //system("/sbin/reboot");
-    scope_reset();
+    //scope_reset();
     //scope_stop_run(); // stop run before flushing
     //scope_flush(); //flush BEFORE starting the output
 #ifdef DEBUG_SCOPE
@@ -634,6 +656,30 @@ int scope_run_read()
   return iret;
 }
 
+void scope_event_to_shm(uint16_t evnr,uint16_t trflag, uint16_t sec,uint32_t ssec)
+{
+  int i;
+  int offset = 0;
+  uint32_t nanosec;
+  int next_write = *(shm_ev.next_write);
+  
+
+  for(i=0;i<BUFSIZE;i++){
+    nanosec = *(uint32_t *)&evtbuf[offset+EVT_NANOSEC];
+    if(sec == (evtbuf[offset+EVT_SECOND]&0xff)){
+      if(nanosec>>6 == ssec) {
+	evtbuf[offset+EVT_ID]=evnr;
+	memcpy(&t3buf[next_write*evtlen],&evtbuf[offset],evtbuf[offset+EVT_LENGTH]*sizeof(uint16_t));
+	//printf("Found event %d %d\n",evnr,next_write);
+	next_write++;
+	if(next_write >= MAXT3) next_write = 0;
+	*(shm_ev.next_write) = next_write;
+	break;
+      } 
+    }
+    offset += evtlen;
+  }
+}
 /*!
  \func int scope_cal_read()
  \brief reads data from scope, meant to use during calibration
@@ -644,31 +690,6 @@ int scope_cal_read()
   return scope_read(0);
 }
 
-/*!
- \func int scope_calc_evnsec()
- \brief calculates exact timing for all events recorded in the
- appropriate second
- \param ibuf index of event for which to calculate the time
- \retval 1 ok
- \retval       -1 error
- */
-int scope_calc_evnsec() //probably no longer needed
-{
-  
-  return(1);
-}
-
-/*!
- \func int scope_calc_t3nsec(int ibuf)
- \brief calculates exact timing for event to be sent to DAQ
- \param ibuf index of event for which to calculate the time
- \retval 1 ok
- \retval -1 error
- */
-int scope_calc_t3nsec(EV_DATA *t3_buffer)
-{
-  return(1);
-}
 
 /*!
  \func  void scope_calibrate()

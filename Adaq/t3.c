@@ -100,6 +100,7 @@ void t3_gett2()
       if((sec>(t2evts[0].sec+100))&&t2write != 0) {
         printf("T3: Error in timing, large jump; LS=%d\n",stat);
       }
+      //printf("Received a T2 %d %d\n",stat,sec);
       prev_nsec = 0;      // needed to check if we loop over into next second
       nsub = (msg->length-5)/2;  // number of subseconds in this T2
       for(isub=0;isub<nsub;isub++){
@@ -187,7 +188,7 @@ void t3_maket3()
   int evsize,evnear;
   int eventindex[MAXDU];
   
-  //printf("T3: t3write %d T0=%d Tlast=%d\n",t2write,t2evts[0].sec,t2evts[t2write-1].sec);
+  
   for(ind=(t2write-1);ind>0;ind--){
     // 1st ensure that event is old enough, not likely for new data to appear
     insertdif = t2evts[0].sec-t2evts[ind].sec;
@@ -205,8 +206,10 @@ void t3_maket3()
     else isten = 0;
     if(t2evts[ind].trigflag&0x8) israndom = 1;
     else israndom = 0;
+    //if(isten == 1) printf("A 10 sec trigger %d\n",t2evts[ind].sec);
     for(i=ind-1;i>=0;i--){
-      if(t2evts[i].sec-t2evts[ind].sec == 1){
+      if(t2evts[i].sec-t2evts[ind].sec > 1) tdif = TCOINC+1;
+      else if(t2evts[i].sec-t2evts[ind].sec == 1){
         tdif = GIGA+t2evts[i].nsec-t2evts[ind].nsec;
       }else{
         tdif = t2evts[i].nsec-t2evts[ind].nsec;

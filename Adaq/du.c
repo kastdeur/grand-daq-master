@@ -26,6 +26,9 @@ extern int errno;
 void du_send();
 uint16_t du_read_initfile();
 
+#define SOCKETS_BUFFER_SIZE  1048576
+#define SOCKETS_TIMEOUT      1000
+
 /*!
  \func du_interpret(uint16_t *buffer)
  \brief interprets the data in the buffer
@@ -43,7 +46,7 @@ void du_interpret(uint16_t *buffer)
   while(i<buffer[0]-1){
     msg = (AMSG *)(&(buffer[i]));
     t2b = (T2BODY *)msg->body;
-    //printf("DU: received message %d\n",msg->tag);
+    printf("DU: received message %d\n",msg->tag);
     switch(msg->tag){ //based on tag, data is moved to different servers
       case DU_T2:
         if(msg->length<T2SIZE){
@@ -71,6 +74,7 @@ void du_interpret(uint16_t *buffer)
         //printf("DU: Receive monitor info Stat=%d Sec=%d rate=%d\n",buffer[i+2]&0xff,*(int *)&buffer[i+3],buffer[i+5]);
         //  break;
       case DU_EVENT:
+        printf("Received an event\n");
       case DU_NO_EVENT:
         if(msg->length<EVSIZE){
           // wait until the shared memory is not full
@@ -118,16 +122,16 @@ int set_socketoptions(int sock)
   option = 1;
   if(setsockopt (sock,IPPROTO_TCP, TCP_NODELAY, &option,
                  (socklen_t)(sizeof (int)) )<0) return(ERROR);
-  option = 1048576;
+  option = SOCKETS_BUFFER_SIZE;
   if(setsockopt (sock,SOL_SOCKET, SO_SNDBUF,&option,
                  (socklen_t)(sizeof (int)) )<0) return(ERROR);
   if(setsockopt (sock,SOL_SOCKET, SO_RCVBUF,&option,
                  (socklen_t)(sizeof (int)) )<0) return(ERROR);
-  timeout.tv_usec = 10000;//was 100000
+  timeout.tv_usec = SOCKETS_TIMEOUT;//was 100000
   timeout.tv_sec = 0;
   if(setsockopt (sock,SOL_SOCKET, SO_RCVTIMEO,&timeout,
                  (socklen_t)(sizeof (struct timeval)) )<0) return(ERROR);
-  timeout.tv_usec = 10000;//was 100000
+  timeout.tv_usec = SOCKETS_TIMEOUT;//was 100000
   timeout.tv_sec = 0;
   if(setsockopt (sock,SOL_SOCKET, SO_SNDTIMEO,&timeout,
                  (socklen_t)(sizeof (struct timeval))  )<0) return(ERROR);
@@ -182,6 +186,7 @@ void du_connect()
     if(DUinfo[i].DUsock >= 0) continue; // nothing needs to be done
     printf("Trying to connect to socket %d\n",DUinfo[i].DUport);
     //1. Create the socket
+    //DUinfo[i].DUsock =  socket ( PF_INET, SOCK_DGRAM, 0 );
     DUinfo[i].DUsock =  socket ( PF_INET, SOCK_STREAM, 0 );
     DUinfo[i].LSTconnect = tnow.tv_sec;
     if(DUinfo[i].DUsock < 0 ) continue;//cannot connect, go to the next one
@@ -223,7 +228,7 @@ void du_connect()
 void du_read()
 {
   int i,ntry;
-  int bytesRead;
+  int bytesRead,nread;
   ssize_t recvRet,rsend;
   uint16_t buffer[50000]; //temp!
   uint8_t *bf = (uint8_t *)buffer;
@@ -250,12 +255,19 @@ void du_read()
       // read remaining data
       bytesRead = 2;
       ntry = 0;
+      printf("Socket reading-before loop  %d %d\n",bytesRead,(2*buffer[0]+2));
       while (bytesRead < (2*buffer[0]+2)) { //size is in shorts, including the first word!
+        nread = 2*buffer[0]+2-bytesRead;
+        //if(nread>SOCKETS_BUFFER_SIZE/2) nread = SOCKETS_BUFFER_SIZE/2;
+        printf("Socket reading %d %d %d\n",bytesRead,(2*buffer[0]+2),nread);
         recvRet = recvfrom(DUinfo[i].DUsock,&bf[bytesRead],
-                           2*buffer[0]+2-bytesRead,0,(struct sockaddr*)&DUinfo[i].DUaddress,&RDalength);
+                           nread,0,(struct sockaddr*)&DUinfo[i].DUaddress,&RDalength);
         RDalength = DUinfo[i].DUalength;
         if(errno == EAGAIN ) {
-          if(recvRet>=0) bytesRead+=recvRet;
+          if(recvRet>0) {
+            bytesRead+=recvRet;
+            ntry = 0;
+          }
           ntry++;
           if(ntry == 100) {
             buffer[0] = 0;
@@ -273,7 +285,11 @@ void du_read()
           DUinfo[i].DUsock = -1;
           DUinfo[i].LSTconnect = 0;
           break;
-        }else bytesRead += recvRet;
+        }else {
+          bytesRead += recvRet;
+          ntry = 0;
+        }
+        usleep(2*SOCKETS_TIMEOUT);
       } // while read data
       if(buffer[0] > 0) {
         du_interpret(buffer);
@@ -281,7 +297,7 @@ void du_read()
       DUinfo[i].LSTconnect = tnow.tv_sec;
     }
     if(errno != EAGAIN && recvRet<0){
-      printf("DU: Problem with connection to station %d Error = %d\n",DUinfo[i].DUid,errno);
+      printf("DU: Problem with connection to station %d Error = %d (%s)\n",DUinfo[i].DUid,errno,strerror(errno));
       shutdown(DUinfo[i].DUsock,SHUT_RDWR);
       close(DUinfo[i].DUsock);
       DUinfo[i].DUsock = -1;
@@ -295,6 +311,7 @@ void du_read()
       buffer[3] = DUinfo[i].DUid;
       buffer[4] = GRND1;
       buffer[5] = GRND2;
+      printf("Sending ALIVE\n");
       rsend = sendto(DUinfo[i].DUsock,buffer,2*buffer[0]+2, 0,(struct sockaddr*)&DUinfo[i].DUaddress,
                      DUinfo[i].DUalength);
       if(rsend<0 && errno != EAGAIN ) {
@@ -443,6 +460,7 @@ void du_write()
       evtinfo->event_nr = T3info->event_nr; //get event number from T3
       n_t3_du = (msg->length-3)/T3STATIONSIZE; // msg == length+tag+eventnr+T3stations
       for(it3=0;it3<n_t3_du;it3++){ // loop over all stations in T3 list
+        printf("DU: Need to request a T3 %d %d\n",T3info->t3station[it3].DU_id,T3info->t3station[it3].sec);
         for(il=0;il<tot_du;il++){ //loop over all DU in the DAQ
           if(T3info->t3station[it3].DU_id== 0 || T3info->t3station[it3].DU_id == DUinfo[il].DUid){
             // request event from station
@@ -451,6 +469,7 @@ void du_write()
             evtinfo->NS1 = T3info->t3station[it3].NS1;
             evtinfo->NS2 = T3info->t3station[it3].NS2;
             evtinfo->NS3 = T3info->t3station[it3].NS3;
+            printf("DU: Requesting a T3 %d %d\n",evtinfo->DU_id,evtinfo->sec);
             du_send(get_t3event,il);
           }
         }

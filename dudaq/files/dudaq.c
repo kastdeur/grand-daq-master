@@ -24,7 +24,6 @@
 #include "scope.h"
 #include "ad_shm.h"
 
-int buffer_to_t3(unsigned short event_nr, unsigned short isec,unsigned int ssec,uint16_t trflag);
 int buffer_add_t2(unsigned short *bf,int bfsize,short id);
 int buffer_add_t3(unsigned short *bf,int bfsize,short id);
 int buffer_add_monitor(unsigned short *bf,int bfsize,short id);
@@ -32,17 +31,21 @@ void scope_flush();
 
 shm_struct shm_ev; //!< shared memory containing all event info, including read/write pointers
 shm_struct shm_gps; //!< shared memory containing all GPS info, including read/write pointers
+shm_struct shm_ts; //!< shared memory containing all timestamp info, including read/write pointers
 shm_struct shm_cmd; //!< shared memory containing all command info, including read/write pointers
-EV_DATA *eventbuf;  //!< buffer that holds all triggered events (points to shared memory)
+TS_DATA *timestampbuf;
 GPS_DATA *gpsbuf; //!< buffer to hold GPS information
 extern int errno; //!< the number of the error encountered
 extern uint32_t shadowlist[Reg_End>>2];
 
+
+#define SOCKETS_BUFFER_SIZE  1048576
+#define SOCKETS_TIMEOUT      100
+
 int du_port;       //!<port number on which to connect to the central daq
 
 int run=0;                //!< current run number
-//int t2_triggers= 0; (not used)
-//int evbuf=0; (not used)
+
 int station_id;           //!< id of the LS, obtained from the ip address
 extern int seczero;
 
@@ -72,6 +75,7 @@ void chc_read();
 void remove_shared_memory()
 {
     ad_shm_delete(&shm_ev);
+    ad_shm_delete(&shm_ts);
     ad_shm_delete(&shm_gps);
     ad_shm_delete(&shm_cmd);
 }
@@ -139,13 +143,13 @@ int set_socketoptions(int sock)
     if(setsockopt (sock,SOL_SOCKET, SO_KEEPALIVE,&option,sizeof (int) ) < 0) return(-1);
     option = 1;
     if(setsockopt (sock,IPPROTO_TCP, TCP_NODELAY, &option,sizeof (int) )<0) return(-1);
-    option = 1048576;
+    option = SOCKETS_BUFFER_SIZE;
     if(setsockopt (sock,SOL_SOCKET, SO_SNDBUF,&option,sizeof (int) )<0) return(-1);
     if(setsockopt (sock,SOL_SOCKET, SO_RCVBUF,&option,sizeof (int) )<0) return(-1);
-    timeout.tv_usec = 10000;
+    timeout.tv_usec = SOCKETS_TIMEOUT;
     timeout.tv_sec = 0;
     if(setsockopt (sock,SOL_SOCKET, SO_RCVTIMEO,&timeout,sizeof (struct timeval) )<0) return(-1);
-    timeout.tv_usec = 10000;
+    timeout.tv_usec = SOCKETS_TIMEOUT;
     timeout.tv_sec = 0;
     if(setsockopt (sock,SOL_SOCKET, SO_SNDTIMEO,&timeout,sizeof (struct timeval) )<0) return(-1);
     return(0);
@@ -170,6 +174,7 @@ int make_server_connection(int port)
   
   printf("Trying to connect to the server\n");
   // Create the socket
+  //DU_socket =  socket ( PF_INET, SOCK_DGRAM, 0 );
   DU_socket =  socket ( PF_INET, SOCK_STREAM, 0 );
   if(DU_socket < 0 ) {
     printf("make server connection: Cannot create a socket\n");
@@ -196,10 +201,8 @@ int make_server_connection(int port)
   }
   DU_comms = -1;
   ntry = 0;
-  while(DU_comms < 0 && ntry <10){
-    printf("Trying %d\n",ntry);
+  while(DU_comms < 0 && ntry <10000){
     DU_comms = accept(DU_socket, (struct sockaddr*)&DU_address,&DU_alength);
-    printf("After accept\n");
     if(DU_comms <0){
       if(errno != EWOULDBLOCK && errno != EAGAIN) {
 	printf("Return an error\n");
@@ -238,9 +241,7 @@ int check_server_data()
 {
   uint16_t *msg_start;
   uint16_t msg_tag, msg_len;
-  uint16_t trflag;
   uint16_t ackalive[6]={5,3,ALIVE_ACK,station_id,GRND1,GRND2};
-  du_geteventbody *getevt;
   int32_t port,i,il,isize;
   uint16_t isec;
   uint32_t ssec;
@@ -324,7 +325,7 @@ int check_server_data()
   }
   
   i = 1;
-  printf("Message length = %d\n",DU_input[0]);
+  //printf("Message length = %d\n",DU_input[0]);
   while(i<DU_input[0]-1){
     msg_start = &(DU_input[i]);
     msg_len = msg_start[AMSG_OFFSET_LENGTH];
@@ -353,19 +354,11 @@ int check_server_data()
         shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_write)] = 1;
         *shm_cmd.next_write = *shm_cmd.next_write + 1;
         if(*shm_cmd.next_write >= *shm_cmd.nbuf) *shm_cmd.next_write = 0;
-        if(msg_tag == DU_INITIALIZE || msg_tag == DU_BOOT || msg_tag == DU_RESET) sleep(15);
         break;
       case DU_GETEVENT:                    // calculate sec and subsec, move the event to the t3 buffer
       case DU_GET_MINBIAS_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
       case DU_GET_RANDOM_EVENT:                    // calculate sec and subsec, move the event to the t3 buffer
         if (msg_len == AMSG_OFFSET_BODY + 3 + 1) {
-          getevt = (du_geteventbody *)&msg_start[AMSG_OFFSET_BODY];
-          ssec = (getevt->NS3+(getevt->NS2<<8)+(getevt->NS1<<16));
-          //printf("Requesting Event %d %d %d\n",getevt->event_nr,getevt->sec,ssec);
-          trflag = 0;
-          if(msg_tag == DU_GET_MINBIAS_EVENT)trflag = TRIGGER_T3_MINBIAS;
-          if(msg_tag == DU_GET_RANDOM_EVENT)trflag = TRIGGER_T3_RANDOM;
-          buffer_to_t3(getevt->event_nr,getevt->sec,ssec,trflag);
           memcpy((void *)&(shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_write)+1]),(void *)msg_start,2*msg_start[AMSG_OFFSET_LENGTH]);
           shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_write)] = 1;
           *shm_cmd.next_write = *shm_cmd.next_write + 1;
@@ -405,7 +398,7 @@ int send_server_data(){
   int32_t sentBytes;
   int32_t rsend;
   char *bf = (char *)DU_output;
-  int32_t length;
+  int32_t length,bsent;
   DU_alength = sizeof(DU_address);
   
   if(DU_comms< 0){
@@ -425,14 +418,17 @@ int send_server_data(){
   buffer_add_t2(&(DU_output[1]),MAX_T2-1,station_id); // first add the T2 information
   rsend = 0;
   if(DU_output[1] > 0) {
-    //printf("Sending T2's %d\n",DU_output[0]);
     DU_output[0] = DU_output[1]+2;
+    //printf("Sending T2's %d\n",DU_output[0]);
     DU_output[DU_output[0]-1] = GRND1;
     DU_output[DU_output[0]] = GRND2;
     length = 2*DU_output[0]+2;
     sentBytes = 0;
     while(sentBytes<length){
-      rsend = sendto(DU_comms, &(bf[sentBytes]),length-sentBytes, 0,
+      if(length-sentBytes>64) bsent=64;
+      else 
+	bsent = length-sentBytes;
+      rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
                      (struct sockaddr*)&DU_address,DU_alength);
       if(rsend<0 && errno != EAGAIN) {
         printf("Sending T2 did not really work\n");
@@ -440,7 +436,7 @@ int send_server_data(){
         break;
       }
       if(rsend>0) sentBytes +=rsend;
-      if(sentBytes<length) usleep(10);
+      if(sentBytes<length) usleep(1000);
     } //while sentbytes
     if(sentBytes <= 0) { // it did not work
       printf("Sending T2 did not work for socket %d %d\n",DU_comms,errno);
@@ -449,6 +445,7 @@ int send_server_data(){
       DU_comms = -1;
       return(-1);
     }
+    usleep(200);
   }
   buffer_add_monitor(&(DU_output[1]),MAX_OUT_MSG-1,station_id); // Next: monitor information
   if(DU_output[1] == 0) return(rsend); // nothing to do
@@ -459,7 +456,10 @@ int send_server_data(){
   length = 2*DU_output[0]+2;
   sentBytes = 0;
   while(sentBytes<length){
-    rsend = sendto(DU_comms, &(bf[sentBytes]),length-sentBytes, 0,
+    if(length-sentBytes>500) bsent=500;
+    else 
+	bsent = length-sentBytes;
+    rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
                    (struct sockaddr*)&DU_address,DU_alength);
     if(rsend<0 && errno != EAGAIN) {
       printf("Sending T2 did not really work\n");
@@ -467,7 +467,7 @@ int send_server_data(){
       break;
     }
     if(rsend>0) sentBytes +=rsend;
-    if(sentBytes<length) usleep(10);
+    usleep(200);
   } //while sentbytes
   
   return(1);
@@ -492,7 +492,7 @@ int send_t3_event()
   int32_t sentBytes;
   int32_t rsend;
   char *bf = (char *)DU_output;
-  int32_t length;
+  int32_t length,bsent;
   DU_alength= sizeof(DU_address);
   
   if(DU_comms< 0){
@@ -511,14 +511,19 @@ int send_t3_event()
   }
   buffer_add_t3(&(DU_output[1]),MAX_OUT_MSG-3,station_id);
   if(DU_output[1] == 0) return(0); // nothing to do
-  //printf("Sending T3 event\n");
+  //printf("Sending T3 event %d\n",DU_output[1]);
   DU_output[0] = DU_output[1]+2;
   DU_output[DU_output[0]-1] = GRND1;
   DU_output[DU_output[0]] = GRND2;
+  //for(int i=0;i<10;i++) printf("%d ",DU_output[i]);
+  //printf("\n");
   length = 2*DU_output[0]+2;
   sentBytes = 0;
   while(sentBytes<length){
-    rsend = sendto(DU_comms, &(bf[sentBytes]),length-sentBytes, 0,
+    if(length-sentBytes>64) bsent=64;
+    else 
+      bsent = length-sentBytes;
+    rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
                    (struct sockaddr*)&DU_address,DU_alength);
     if(rsend<0 && errno != EAGAIN) {
       printf("Sending event failed %d %d %s\n",length,sentBytes,strerror(errno));
@@ -526,10 +531,10 @@ int send_t3_event()
       break;
     }
     if(rsend>0) sentBytes +=rsend;
-    if(sentBytes<length) usleep(10);
+    usleep(200);
   } //while sentbytes
-  if(sentBytes < 0) { // it did not work
-    printf("Sending event failed 2\n");
+  if(sentBytes < length) { // it did not work
+    printf("Sending event failed %d\n",length-sentBytes);
     shutdown(DU_comms,SHUT_RDWR);
     close(DU_comms);
     DU_comms = -1;
@@ -561,10 +566,13 @@ void du_scope_check_commands()
   uint16_t msg_tag,msg_len,addr;
   uint32_t il;
   uint16_t *sl = (uint16_t *)shadowlist;
+  du_geteventbody *getevt;
+  uint32_t ssec;
+  uint16_t trflag;
 
   //printf("Check cmds %d\n",*shm_cmd.next_read);
   while(((shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)]) &1) ==  1){ // loop over the T3 input
-    printf("Received command\n");
+    //printf("Received command\n");
     msg_start = (uint16_t *)(&(shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)+1]));
     msg_len = msg_start[AMSG_OFFSET_LENGTH];
     msg_tag = msg_start[AMSG_OFFSET_TAG];
@@ -599,7 +607,13 @@ void du_scope_check_commands()
         scope_calibrate();
         break;
       case DU_GETEVENT:                 // request event
-        printf("Requesting a Full event\n");
+	getevt = (du_geteventbody *)&msg_start[AMSG_OFFSET_BODY];
+	trflag = 0;
+	if(msg_tag == DU_GET_MINBIAS_EVENT)trflag = TRIGGER_T3_MINBIAS;
+	if(msg_tag == DU_GET_RANDOM_EVENT)trflag = TRIGGER_T3_RANDOM;
+	ssec = (getevt->NS3+(getevt->NS2<<8)+(getevt->NS1<<16));
+	//printf("Requesting Event %d %d %d\n",getevt->event_nr,getevt->sec,ssec);
+	scope_event_to_shm(getevt->event_nr,trflag,getevt->sec,ssec);
         break;
       default:
         printf("Received unimplemented message %d\n",msg_tag);
@@ -803,11 +817,19 @@ int main(int argc, char **argv)
     if(argc < 2) station_id = DU_PORT;
     else sscanf(argv[1],"%d",&station_id);
 #endif
-    if(ad_shm_create(&shm_ev,BUFSIZE,sizeof(EV_DATA)/sizeof(uint16_t)) <0){ //ad_shm_create is in shorts!
-        printf("Cannot create EVENT shared memory !!\n");
-        exit(-1);
+    if(ad_shm_create(&shm_ev,MAXT3,MAX_READOUT) <0){ //ad_shm_create is in shorts!
+      printf("Cannot create T3  shared memory !!\n");
+      exit(-1);
     }
-    eventbuf = (EV_DATA *) shm_ev.Ubuf;
+    *(shm_ev.next_read) = 0;
+    *(shm_ev.next_write) = 0;
+    if(ad_shm_create(&shm_ts,BUFSIZE,sizeof(TS_DATA)/sizeof(uint16_t)) <0){ //ad_shm_create is in shorts!
+      printf("Cannot create Timestamp shared memory !!\n");
+      exit(-1);
+    }
+    *(shm_ts.next_read) = 0;
+    *(shm_ts.next_write) = 0;
+    timestampbuf = (TS_DATA *)shm_ts.Ubuf;
     if(ad_shm_create(&shm_gps,GPSSIZE,sizeof(GPS_DATA)/sizeof(uint16_t)) <0){ //ad_shm_create is in shorts!
         printf("Cannot create GPS shared memory !!\n");
         exit(-1);

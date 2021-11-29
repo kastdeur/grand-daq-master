@@ -57,8 +57,6 @@
 #define ALIVE_ACK 9999  //!< Acknowledge alive, sent by DU
 
 #define DU_HWNL 1       //!< Dutch hardware
-#define DU_HWFR 2       //!< French hardware
-#define DU_HWDU 3       //!< German hardware
 
 typedef struct{
   uint16_t length;      //!< Message length, not including the length word itself
