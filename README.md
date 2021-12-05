@@ -1,2 +1,0 @@
-# grand-daq-master
- 
