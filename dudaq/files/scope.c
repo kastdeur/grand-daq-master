@@ -46,7 +46,6 @@ extern int station_id;
 extern shm_struct shm_ev;
 uint16_t *t3buf;
 extern shm_struct shm_gps,shm_ts;
-//extern EV_DATA *eventbuf;      // buffer to hold the events
 extern GPS_DATA *gpsbuf;
 extern TS_DATA *timestampbuf;
 uint16_t *evtbuf=NULL;
@@ -56,7 +55,6 @@ int n_evt = 0;
 
 int32_t evgps=0;                //!< pointer to next GPS info
 int32_t prevgps = 0;
-int32_t seczero=0;                //!< seczero keeps track of the number of seconds no data is read out
 
 int16_t cal_type=CAL_END;       //!< what to calibrate (END = nothing)
 int32_t firmware_version;       //!< version of the firmware of the scope
@@ -76,10 +74,6 @@ int leap_sec = 0;               //!< Number of leap seconds in UTC; read from GP
 uint32_t shadowlist[Reg_End>>2];  //!< all parameters to set in FPGA
 uint32_t shadowlistR[Reg_End>>2]; //!< all parameters read from FPGA
 int32_t shadow_filled = 0;                               //!< the shadow list is not filled
-
-int32_t tenrate[4]={0,0,0,0};  //!< rate of all channels, to be checked every "UPDATESEC" seconds
-int32_t pheight[4]={0,0,0,0};  //!< summed pulseheight of all channels
-int32_t n_events[4]={0,0,0,0}; //!< number of events contributing to summed pulse height
 
 int16_t setsystime=0;          //!< check if system time is set
 uint16_t evtlen;
@@ -112,6 +106,7 @@ int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value) //new, reading from A
  */
 void scope_flush()
 {
+  if(axi_ptr == NULL) return;
   scope_raw_write(Reg_GenControl,0x08000000); // clear DAQ Fifo's
   scope_raw_write(Reg_GenControl,0x00000000);
 }
@@ -127,6 +122,8 @@ int scope_open()        // Is this needed?
   unsigned int addr, page_addr;
   unsigned int page_size=sysconf(_SC_PAGESIZE);
 
+  if(dev != 0) close(dev); 
+  axi_ptr = NULL;
 #ifndef Fake
   printf("Trying to open !%s!\n",DEVFILE);
   if ((dev = open(DEVFILE, O_RDWR)) == -1) {
@@ -157,6 +154,8 @@ void scope_close()
 {
 #ifndef Fake
   close(dev);
+  dev = 0;
+  axi_ptr = NULL;
 #endif
 }
 
@@ -175,6 +174,7 @@ void scope_get_parameterlist(uint8_t list)
  */
 void scope_reset()
 {
+  if(axi_ptr == NULL) return;
   scope_raw_write(Reg_Dig_Control,0x00004000); // reset firmware, but this
   scope_raw_write(Reg_Dig_Control,0x00000000); // does not clear registers
 }
@@ -185,9 +185,9 @@ void scope_reset()
  */
 void scope_start_run()
 {
+  if(axi_ptr == NULL) return;
   scope_flush();
   scope_set_parameters(Reg_Dig_Control,shadowlist[Reg_Dig_Control>>2] |(CTRL_PPS_EN | CTRL_SEND_EN ),1);
-  seczero = 0;
 }
 
 /*!
@@ -197,8 +197,8 @@ void scope_start_run()
 void scope_stop_run()
 {
   printf("Scope stop run\n");
+  if(axi_ptr == NULL) return; 
   scope_set_parameters(Reg_Dig_Control,shadowlist[Reg_Dig_Control>>2] & (~CTRL_PPS_EN & ~CTRL_SEND_EN ),1);
-  seczero = 0;
   scope_flush();
 }
 
@@ -211,6 +211,7 @@ void scope_stop_run()
 void scope_set_parameters(uint32_t reg_addr, uint32_t value,uint32_t to_shadow)
 {
   if(to_shadow == 1) shadowlist[reg_addr>>2] = value;
+  if(axi_ptr == NULL) return;
   scope_raw_write(reg_addr,value);
   usleep(1000);
 }
@@ -278,37 +279,12 @@ void scope_create_memory(){
   if(evtbuf != NULL){
     free(evtbuf);
   }
-  //printf("Creating a buffer of size %d\n",BUFSIZE*evtlen);
+  printf("Creating a buffer of size %d\n",BUFSIZE*evtlen);
   evtbuf = (uint16_t *)malloc(BUFSIZE*evtlen*sizeof(uint16_t));
   ptr_evt = 0;
-  t3buf = (uint16_t *)shm_ev.Ubuf; 
-}
-
-/*!
- \func void scope_print_pps(uint8_t *buf)
- \brief print all parameters available in a PPS message
- */
-void scope_print_pps(uint8_t *buf)
-{
-  
-}
-
-/*!
- \func void scope_print_event(uint8_t *buf)
- \brief print all information from an event read from the fpga
- */
-void scope_print_event(uint8_t *buf)  //ok 26/7/2012
-{
-  
-}
-
-/*!
- \func void scope_fill_ph(uint8_t *buf)
- \brief for each channel add to the summed pulse height, also add to the number of events
- */
-void scope_fill_ph(uint8_t *buf)
-{
-  
+  t3buf = (uint16_t *)shm_ev.Ubuf; //T3 requests will be in here 
+  *shm_ts.next_read = 0;
+  *shm_ts.next_write = 0;
 }
 
 #ifdef Fake
@@ -464,6 +440,9 @@ int scope_read_event(int32_t ioff)
   uint32_t *sec,*nanosec;
   int next_write = *(shm_ts.next_write);
 
+  if(axi_ptr == NULL) return(-1);
+  if(evtbuf == NULL) return(-2);
+  if(timestampbuf == NULL) return(-3);
   scope_raw_write(Reg_GenControl,GENCTRL_EVTREAD);
   scope_raw_read(Reg_GenStatus,&Is_Data);
   if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
@@ -472,11 +451,12 @@ int scope_read_event(int32_t ioff)
   if((tbuf>>16) == 0xADC0 || evtbuf == NULL) length = (tbuf&0xffff);
   else length = -1;
   if(length>0 &&evtbuf != NULL){
+    //printf("Offset = %d (%d %d)\n",offset,evtlen,length);
     ebuf = (uint32_t *)&evtbuf[offset];
     *ebuf++ = tbuf;
     while(length>0){
       scope_raw_read(Reg_Data,ebuf++);
-      length--;
+      length-=2;
     }
     evtbuf[offset+EVT_HDRLEN] = HEADER_EVT;
     sec = (uint32_t *)&evtbuf[offset+EVT_SECOND];
@@ -504,6 +484,7 @@ int scope_read_event(int32_t ioff)
     *shm_ts.next_write = next_write;
     ptr_evt +=ioff;
     if(ptr_evt>=BUFSIZE) ptr_evt = 0; // remember: circular buffer
+    //printf("Next offset = %d\n",ptr_evt*evtlen);
     return(SCOPE_EVENT);                  // success!
   } else{ //flushing, but why???
     if(length<0) length = 10000;
@@ -531,6 +512,7 @@ int32_t scope_read_pps()  //27/7/2012 ok
   uint32_t Is_Data,tbuf,*pbuf,ctp;
   int length;
   
+  if(axi_ptr == NULL) return(-1);
   scope_raw_read(Reg_GenStatus,&Is_Data);
   scope_raw_write(Reg_GenControl,0);
   if((Is_Data&(GENSTAT_PPSFIFO)) == 0){
@@ -599,20 +581,6 @@ int scope_read(int ioff)
   if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
     scope_read_event(ioff);
   }
-
-  // move data in the shadowlist
-/*  if(rawbuf[1]<PARAM_NUM_LIST){
-    // move the parameters in the correct shadow list.
-    // TODO: they should first be compared!
-    //scope_raw_read((unsigned char *)(&rawbuf[3]),2);
-    if(rawbuf[3] == MSG_END || rawbuf[4] == MSG_END) return(-4);
-    totlen = (rawbuf[4]<<8)+rawbuf[3];
-  }
-  else if(rawbuf[1] == ID_PARAM_EVENT) return(scope_read_event(ioff));
-  else if(rawbuf[1] == ID_PARAM_ERROR) return(scope_read_error());
-  printf("ERROR Identifier = %x\n",rawbuf[1]);
-  return(-3);                               // bad identifier read
- */
 #endif
   return(0);
 }
@@ -635,24 +603,8 @@ int scope_no_run_read()
 int scope_run_read()
 {
   int iret;
-  int szerop = seczero;
   
-  iret = scope_read(1);
-  if((seczero !=szerop && seczero>11)) {
-    //system("/sbin/reboot");
-    //scope_reset();
-    //scope_stop_run(); // stop run before flushing
-    //scope_flush(); //flush BEFORE starting the output
-#ifdef DEBUG_SCOPE
-    printf("scope_run_read: re-Starting the run\n");
-#endif
-    //scope_close();
-    //sleep(1);
-    //scope_open();
-    scope_copy_shadow(); //make sure that the settings are ok again */
-    scope_start_run();
-    seczero = 0;
-  }
+  iret = scope_read(1); //should be 1
   return iret;
 }
 
@@ -669,8 +621,9 @@ void scope_event_to_shm(uint16_t evnr,uint16_t trflag, uint16_t sec,uint32_t sse
     if(sec == (evtbuf[offset+EVT_SECOND]&0xff)){
       if(nanosec>>6 == ssec) {
 	evtbuf[offset+EVT_ID]=evnr;
+	evtbuf[offset+EVT_T3FLAG] = trflag;
 	memcpy(&t3buf[next_write*evtlen],&evtbuf[offset],evtbuf[offset+EVT_LENGTH]*sizeof(uint16_t));
-	//printf("Found event %d %d\n",evnr,next_write);
+	printf("Found event %d Buffer-id %d Flag = %d\n",evnr,next_write,trflag);
 	next_write++;
 	if(next_write >= MAXT3) next_write = 0;
 	*(shm_ev.next_write) = next_write;
@@ -680,57 +633,3 @@ void scope_event_to_shm(uint16_t evnr,uint16_t trflag, uint16_t sec,uint32_t sse
     offset += evtlen;
   }
 }
-/*!
- \func int scope_cal_read()
- \brief reads data from scope, meant to use during calibration
- \retval scope_read(0)
- */
-int scope_cal_read()
-{
-  return scope_read(0);
-}
-
-
-/*!
- \func  void scope_calibrate()
- \brief runs the scope offset and gain calibration ( a minirun by itself)
- Note: the data is only printed and not (yet) saved!
- */
-void scope_calibrate()
-{
-  scope_initialize_calibration();           // set up the scope parameters
-  while(cal_type != CAL_END){               // continue until we are done
-    if(scope_cal_read() == SCOPE_EVENT){    // only look at events
-      scope_calibrate_evt();
-      // make changes in offset (first) and gain (second)
-    }
-  }
-  scope_stop_run();                         // stop the run
-}
-
-
-/*!
- \func  void scope_initialize_calibration()
- \brief initialize the digitizer to run the calibration
- */
-void scope_initialize_calibration()
-{
-  
-}
-
-
-/*!
- \func  int scope_calibrate_evt()
- \brief Manipulates offset to get the baseline close to 0,
- and gain to get the full scale close to CAL_GAIN_TARG
- \retval CAL_OFFSET - offset calibration is going on
- \retval CAL_GAIN   - moved up to gain calibration
- \retval CAL_END    - we are done!
- */
-int scope_calibrate_evt()
-{
-  
-  return (cal_type);
-}
-
-//

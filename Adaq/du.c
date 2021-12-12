@@ -46,7 +46,7 @@ void du_interpret(uint16_t *buffer)
   while(i<buffer[0]-1){
     msg = (AMSG *)(&(buffer[i]));
     t2b = (T2BODY *)msg->body;
-    printf("DU: received message %d\n",msg->tag);
+    //printf("DU: received message %d\n",msg->tag);
     switch(msg->tag){ //based on tag, data is moved to different servers
       case DU_T2:
         if(msg->length<T2SIZE){
@@ -74,12 +74,12 @@ void du_interpret(uint16_t *buffer)
         //printf("DU: Receive monitor info Stat=%d Sec=%d rate=%d\n",buffer[i+2]&0xff,*(int *)&buffer[i+3],buffer[i+5]);
         //  break;
       case DU_EVENT:
-        printf("Received an event\n");
+        //printf("Received an event\n");
       case DU_NO_EVENT:
         if(msg->length<EVSIZE){
           // wait until the shared memory is not full
           while(shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_write)] == 1) {//infinite loop, potential problem!
-            printf("DU: Wait for EB\n");
+            //printf("DU: Wait for EB\n");
             usleep(1000); // wait for the event builder to be ready
           }
           // copy the event/monitor data
@@ -255,11 +255,11 @@ void du_read()
       // read remaining data
       bytesRead = 2;
       ntry = 0;
-      printf("Socket reading-before loop  %d %d\n",bytesRead,(2*buffer[0]+2));
+      //printf("Socket reading-before loop  %d %d\n",bytesRead,(2*buffer[0]+2));
       while (bytesRead < (2*buffer[0]+2)) { //size is in shorts, including the first word!
         nread = 2*buffer[0]+2-bytesRead;
         //if(nread>SOCKETS_BUFFER_SIZE/2) nread = SOCKETS_BUFFER_SIZE/2;
-        printf("Socket reading %d %d %d\n",bytesRead,(2*buffer[0]+2),nread);
+        //printf("Socket reading %d %d %d\n",bytesRead,(2*buffer[0]+2),nread);
         recvRet = recvfrom(DUinfo[i].DUsock,&bf[bytesRead],
                            nread,0,(struct sockaddr*)&DUinfo[i].DUaddress,&RDalength);
         RDalength = DUinfo[i].DUalength;
@@ -311,7 +311,7 @@ void du_read()
       buffer[3] = DUinfo[i].DUid;
       buffer[4] = GRND1;
       buffer[5] = GRND2;
-      printf("Sending ALIVE\n");
+      //printf("Sending ALIVE\n");
       rsend = sendto(DUinfo[i].DUsock,buffer,2*buffer[0]+2, 0,(struct sockaddr*)&DUinfo[i].DUaddress,
                      DUinfo[i].DUalength);
       if(rsend<0 && errno != EAGAIN ) {
@@ -460,16 +460,17 @@ void du_write()
       evtinfo->event_nr = T3info->event_nr; //get event number from T3
       n_t3_du = (msg->length-3)/T3STATIONSIZE; // msg == length+tag+eventnr+T3stations
       for(it3=0;it3<n_t3_du;it3++){ // loop over all stations in T3 list
-        printf("DU: Need to request a T3 %d %d\n",T3info->t3station[it3].DU_id,T3info->t3station[it3].sec);
+        //printf("DU: Need to request a T3 %d %d\n",T3info->t3station[it3].DU_id,T3info->t3station[it3].sec);
         for(il=0;il<tot_du;il++){ //loop over all DU in the DAQ
           if(T3info->t3station[it3].DU_id== 0 || T3info->t3station[it3].DU_id == DUinfo[il].DUid){
             // request event from station
+            get_t3event[2] =  msg->tag;
             evtinfo->DU_id = DUinfo[il].DUid;                 // translate t3list into du_getevent
             evtinfo->sec = T3info->t3station[it3].sec;
             evtinfo->NS1 = T3info->t3station[it3].NS1;
             evtinfo->NS2 = T3info->t3station[it3].NS2;
             evtinfo->NS3 = T3info->t3station[it3].NS3;
-            printf("DU: Requesting a T3 %d %d\n",evtinfo->DU_id,evtinfo->sec);
+            //printf("DU: Requesting a T3 %d %d\n",evtinfo->DU_id,evtinfo->sec);
             du_send(get_t3event,il);
           }
         }
@@ -487,7 +488,7 @@ void du_write()
       printf("DU: sending commandline command  %d with length %d\n",msg->tag,msg->length);
       if(msg->tag == DU_START) running = 1;
       if(msg->tag == DU_STOP) running = 0;
-      if(msg->tag == DU_STOP || msg->tag == DU_START || msg->tag == DU_CALIBRATE){
+      if(msg->tag == DU_STOP || msg->tag == DU_START){
         du_cmd[0] = 5;
         du_cmd[1] = 3;
         du_cmd[2] = msg->tag;

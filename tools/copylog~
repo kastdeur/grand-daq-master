@@ -1,5 +1,0 @@
-while [ .true. ]
-do
-  rsync -avz /media/data/logfiles/ timmer@login.hef.ru.nl:public_html/auger/logfiles
-  sleep 1h
-done

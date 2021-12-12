@@ -30,7 +30,6 @@
 #define DU_CONNECT  20     //!< Message tag as defined by DAQ group
 #define DU_LISTEN   21     //!< Message tag as defined by DAQ group
 #define DU_SCRIPT   22     //!< Message tag as defined by DAQ group
-#define DU_CALIBRATE 23    //!< Message tag as defined by DAQ group
 #define DU_GET_EXT_GUI_EVENT           26 //!< Message tag as defined by DAQ group
 #define DU_GET_MINBIAS_EVENT           29 //!< Message tag as defined by DAQ group
 #define DU_GET_RANDOM_EVENT            32 //!< Message tag as defined by DAQ group
@@ -106,13 +105,9 @@ typedef struct{
   T3STATION  t3station[];  //!< Information required for LS
 }T3BODY;
 
-
-#define USE_EVENTBODY_VERSION //!< An eventbody version was added to the event body
 #define EVENTBODY_VERSION		3 //!< The version number is 3
 
-#define MIN_EVHEADER_LENGTH 12 //!< The minimal length of the event header
-
-
+/**
 typedef struct{
   uint16_t length;
   uint16_t event_nr;
@@ -129,28 +124,7 @@ typedef struct{
   uint16_t version;				// use a version information, in use since ??.02.2011
   uint16_t info_ADCbuffer[];
 }EVENTBODY;
-
-/* Halfword offset of EVENTBODY fields assuming struct is packed */
-/* Necessary to avoid alignment problems on ARM */
-/* These need to be updated if struct is changed */
-#define EB_OFFSET_LENGTH       0
-#define EB_OFFSET_EVENT_NR     1
-#define EB_OFFSET_DU_ID        2
-#define EB_OFFSET_HDR_LENGTH   3
-#define EB_OFFSET_GPSSEC       4
-#define EB_OFFSET_GPSNSEC      6
-#define EB_OFFSET_TRIG_FLAG    8
-#define EB_OFFSET_TRIG_POS     9
-#define EB_OFFSET_SAMP_FREQ   10
-#define EB_OFFSET_CHAN_MASK   11
-#define EB_OFFSET_ADC_RES     12
-#define EB_OFFSET_TRACELENGTH 13
-#ifdef USE_EVENTBODY_VERSION
-#define EB_OFFSET_VERSION     14
-#define EB_OFFSET_ADCBUFFER   15
-#else
-#define EB_OFFSET_ADCBUFFER   14
-#endif
+**/
 
 typedef struct{
   uint16_t DU_id;

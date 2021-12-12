@@ -70,7 +70,6 @@ prints prompt
 continuous loop waiting for input on the command line. Sends the following commands to the DAQ:
  STOP_RUN
  START_RUN
- CALIBRATE
  INITIALIZE
  */
 void ui_main()
@@ -81,7 +80,6 @@ void ui_main()
   while(fgets(cmd,199,stdin)){
     if(strncasecmp(cmd,"STOP_RUN",8) == 0) cmd_run(DU_STOP);
     if(strncasecmp(cmd,"START_RUN",9) == 0) cmd_run(DU_START);
-    if(strncasecmp(cmd,"CALIBRATE",9) == 0) send_cmd(DU_CALIBRATE,0);
     if(strncasecmp(cmd,"INITIALIZE",10) == 0) send_cmd(DU_INITIALIZE,0);
     printf("Adaq >");
   }

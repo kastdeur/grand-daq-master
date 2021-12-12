@@ -196,6 +196,7 @@
 #define EVT_SECOND        4
 #define EVT_NANOSEC       6
 #define EVT_TRIGGERPOS    8
+#define EVT_T3FLAG        9
 #define EVT_ATM_TEMP      17
 #define EVT_ATM_PRES      18
 #define EVT_ATM_HUM       19

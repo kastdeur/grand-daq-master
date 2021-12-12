@@ -36,6 +36,6 @@ typedef struct{
   uint32_t free;
   uint32_t event_free;
   uint32_t DU_count;
-  EVENTBODY DUdata[];
+  uint16_t DUdata[];
 }EVHDR;
 

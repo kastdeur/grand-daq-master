@@ -47,7 +47,6 @@ int du_port;       //!<port number on which to connect to the central daq
 int run=0;                //!< current run number
 
 int station_id;           //!< id of the LS, obtained from the ip address
-extern int seczero;
 
 fd_set sockset;           //!< socket series to be manipulated
 int32_t DU_socket = -1;   //!< main socket for accepting connections
@@ -230,7 +229,7 @@ int make_server_connection(int port)
 * - read data until all is read or there is an error
 *   - on error shut down socket connection
 * - interpret messages:
-*   - DU_RESET, DU_INITIALIZE, DU_START, DU_STOP, DU_CALIBRATE, DU_BOOT are stored in shared memory for interpretation by scope_check_commands()
+*   - DU_RESET, DU_INITIALIZE, DU_START, DU_STOP, DU_BOOT are stored in shared memory for interpretation by scope_check_commands()
 *   - DU_GETEVENT moves event into the T3-buffer
 *   - ALIVE responds with ACK_ALIVE to central DAQ
 *
@@ -345,7 +344,6 @@ int check_server_data()
       case DU_INITIALIZE:
       case DU_START:
       case DU_STOP:
-      case DU_CALIBRATE:                 // calibrate the scope
       case DU_BOOT:
         while(shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_write)] == 1) {
           usleep(1000); // wait for the scope to read the shm
@@ -603,16 +601,15 @@ void du_scope_check_commands()
         scope_stop_run();                  // stop the run
         run = 0;
         break;
-      case DU_CALIBRATE:                 // calibrate the scope
-        scope_calibrate();
-        break;
       case DU_GETEVENT:                 // request event
+      case DU_GET_MINBIAS_EVENT:                 // request event
+      case DU_GET_RANDOM_EVENT:                 // request event
 	getevt = (du_geteventbody *)&msg_start[AMSG_OFFSET_BODY];
 	trflag = 0;
 	if(msg_tag == DU_GET_MINBIAS_EVENT)trflag = TRIGGER_T3_MINBIAS;
 	if(msg_tag == DU_GET_RANDOM_EVENT)trflag = TRIGGER_T3_RANDOM;
 	ssec = (getevt->NS3+(getevt->NS2<<8)+(getevt->NS1<<16));
-	//printf("Requesting Event %d %d %d\n",getevt->event_nr,getevt->sec,ssec);
+	printf("Requesting Event %d %d %d %d\n",getevt->event_nr,msg_tag,getevt->sec,ssec);
 	scope_event_to_shm(getevt->event_nr,trflag,getevt->sec,ssec);
         break;
       default:
@@ -653,9 +650,6 @@ void du_scope_main()
       if((i =scope_run_read(&station_id)) < 0){
         scope_flush();
         printf("Error reading scope %d\n",i);  // read out the scope
-      }
-      if(seczero >=20) {
-        scope_start_run();
       }
     }else{
       scope_no_run_read();                   // read out scope without updating ringbuffer

@@ -112,7 +112,7 @@ int buffer_add_t2(unsigned short *bf,int bfsize,short id) {
     bffil +=2;                                                    // update buffer counter
     n_t2++;
     next_read++;                                                     // update circular event counter
-    if(next_read == BUFSIZE) next_read = 0;
+    if(next_read >= BUFSIZE) next_read = 0;
   }
   if(n_t2 == 0) bffil = 0;
   *(shm_ts.next_read) = next_read;

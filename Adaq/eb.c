@@ -14,6 +14,7 @@ Altering the code without explicit consent of the author is forbidden
 #include "Adaq.h"
 #include "amsg.h"
 #include "eb.h"
+#include "scope.h"
 
 /* next lines copied from scope.h */
 #define FIRMWARE_VERSION(x) (10*((x>>20)&0xf)+((x>>16)&0xf))
@@ -107,11 +108,6 @@ void eb_close()
     fpten = NULL;
     fpmb = NULL;
     fpmon = NULL;
-    sprintf(cmd,
-            "nohup /home/daq/Charles/daq/tools/checkmonitor %s/MON/MO%06d.f%04d %s/TD/td%06d.f%04d %s/AD/ad%06d.f%04d %s/logfiles/log%06d.f%04d %s/action/AC%06d.f%04d &",
-            eb_dir,eb_run,eb_sub,eb_dir,eb_run,eb_sub,eb_dir,eb_run,eb_sub,eb_dir,eb_run,eb_sub,eb_dir,eb_run,eb_sub);
-    
-    system(cmd);
 }
 
 /**
@@ -124,21 +120,27 @@ void eb_close()
  */
 int eb_DUcompare(const void *a, const void *b)
 { /* sorting in REVERSE order, easy removal of older data */
-  EVENTBODY *t1,*t2;
-  t1 = (EVENTBODY *)(a);
-  t2 = (EVENTBODY *)(b);
-  if(t1->event_nr < t2->event_nr) {
-    if((t1->event_nr+1000) < t2->event_nr) return(-1);
+  uint16_t  *t1,*t2;
+  uint32_t t1sec,t2sec;
+  uint32_t t1nsec,t2nsec;
+  t1 = (uint16_t *)(a);
+  t2 = (uint16_t *)(b);
+  if(t1[EVT_ID] < t2[EVT_ID]) {
+    if((t1[EVT_ID]+1000) < t2[EVT_ID]) return(-1);
     else return(1);
   }
-  if(t1->event_nr > t2->event_nr) {
-    if(t1->event_nr > (t2->event_nr+1000)) return(1);
+  if(t1[EVT_ID] > t2[EVT_ID]) {
+    if(t1[EVT_ID] > (t2[EVT_ID]+1000)) return(1);
     else return(-1);
   }
-  if(t1->GPSseconds < t2->GPSseconds) return(1);
-  if(t1->GPSseconds == t2->GPSseconds){
-    if(t1->GPSnanoseconds < t2->GPSnanoseconds) return(1);
-    else if(t2->GPSnanoseconds < t1->GPSnanoseconds) return(-1);
+  t1sec = *(uint32_t *)&t1[EVT_SECOND];
+  t1nsec = *(uint32_t *)&t1[EVT_NANOSEC];
+  t2sec = *(uint32_t *)&t2[EVT_SECOND];
+  t2nsec = *(uint32_t *)&t2[EVT_NANOSEC];
+  if(t1sec < t2sec) return(1);
+  if(t1sec == t2sec){
+    if(t1nsec < t2nsec) return(1);
+    else if(t2nsec < t1nsec) return(-1);
     else return(0);
   }
   return(-1);
@@ -207,7 +209,7 @@ void eb_gett3(){
  */
 void eb_getdata(){
     AMSG *msg;
-    EVENTBODY *DUinfo;
+    uint16_t *DUinfo;
     int inew=0;
     int firmware;
     
@@ -221,8 +223,8 @@ void eb_getdata(){
         msg = (AMSG *)(&(shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_read)+1]));
         //printf("EB getdata: loop over input. TAG = %d\n",msg->tag);
         if(msg->tag == DU_EVENT){
-            DUinfo = (EVENTBODY *)msg->body;
-            if(i_DUbuffer < NDU) memcpy((void *)&DUbuffer[i_DUbuffer],(void *)DUinfo,2*DUinfo->length);
+            DUinfo = (uint16_t *)msg->body;
+            if(i_DUbuffer < NDU) memcpy((void *)&DUbuffer[i_DUbuffer],(void *)DUinfo,2*DUinfo[EVT_LENGTH]);
             if(running ==1) i_DUbuffer +=1;
         } else if(msg->tag == DU_MONITOR){
             if(fpmon != NULL){
@@ -261,33 +263,34 @@ void eb_getdata(){
 void eb_write_events(){
     FILE *fp;
     EVHDR evhdr;
-    EVENTBODY *DUinfo,*DUn;
+    uint16_t *DUinfo,*DUn;
     int i,ils,il_start;
     static int n_written=0;
     
     if(i_DUbuffer == 0) return; //no buffers in memory
 
-    DUinfo = (EVENTBODY *)DUbuffer[i_DUbuffer-1];
+    DUinfo = (uint16_t *)DUbuffer[i_DUbuffer-1];
     il_start = i_DUbuffer-1;
-    DUn = (EVENTBODY *)DUbuffer[0];
-    if((DUn->GPSseconds<=DUinfo->GPSseconds)  &&(i_DUbuffer < (0.8*NDU)))  return; //in case of a huge amount of data in 1 sec
-    if(((DUn->GPSseconds-DUinfo->GPSseconds)<EBTIMEOUT) &&(i_DUbuffer < (0.8*NDU)) ) return;
-    evhdr.t3_id = DUinfo->event_nr;
-    evhdr.DU_count = 1;
-    evhdr.length = 40+2*DUinfo->length;
-    evhdr.run_id = eb_run;
-    evhdr.event_id = eb_event;
-    evhdr.first_DU = DUinfo->DU_id;
-    evhdr.seconds = DUinfo->GPSseconds;
-    evhdr.nanosec = DUinfo->GPSnanoseconds;
-    evhdr.type = DUinfo->trigger_flag;
-    evhdr.version=EVENTVERSION;
+    DUn = (uint16_t *)DUbuffer[0];
+  if((*(uint32_t *)&DUn[EVT_SECOND]<=*(uint32_t *)&DUinfo[EVT_SECOND])  &&(i_DUbuffer < (0.8*NDU)))  return; //in case of a huge amount of data in 1 sec
+  if(((*(uint32_t *)&DUn[EVT_SECOND]-*(uint32_t *)&DUinfo[EVT_SECOND])<EBTIMEOUT) &&(i_DUbuffer < (0.8*NDU)) ) return;
+  evhdr.t3_id = DUinfo[EVT_ID];
+  evhdr.DU_count = 1;
+  evhdr.length = 40+2*DUinfo[EVT_LENGTH];
+  evhdr.run_id = eb_run;
+  evhdr.event_id = eb_event;
+  evhdr.first_DU = DUinfo[EVT_HARDWARE];
+  evhdr.seconds = *(uint32_t *)&DUinfo[EVT_SECOND];
+  evhdr.nanosec = *(uint32_t *)&DUinfo[EVT_NANOSEC];
+  evhdr.type = DUinfo[EVT_T3FLAG];
+  evhdr.version=EVENTVERSION;
+  //printf("Event Type %d Version %d\n",evhdr.type,evhdr.version);
     for(i=(i_DUbuffer-2);i>=0;i--){
-        DUn = (EVENTBODY *)DUbuffer[i];
-        if(DUn->event_nr == evhdr.t3_id){
+        DUn = (uint16_t *)DUbuffer[i];
+        if(DUn[EVT_ID] == evhdr.t3_id){
             evhdr.DU_count ++;
-            evhdr.length += 2*DUn->length;
-            evhdr.type |= DUn->trigger_flag;
+            evhdr.length += 2*DUn[EVT_LENGTH];
+            evhdr.type |= DUn[EVT_T3FLAG];
         }else{
             //printf("EB: Found event %d with %d DU Length = %d (%d, %d %d)\n",evhdr.t3_id,evhdr.DU_count,evhdr.length,i_DUbuffer,DUn->GPSseconds,DUinfo->GPSseconds);
             eb_fhdr.last_event_id = evhdr.event_id;
@@ -296,36 +299,36 @@ void eb_write_events(){
                 eb_open(&evhdr);
                 n_written = 0;
             }
-            if((evhdr.type &0x10) != 0)
+            if((evhdr.type &TRIGGER_T3_MINBIAS) != 0)
                 fp = fpten;
             else{
-                if(evhdr.DU_count == 1) fp=fpmb; //min bias data
+                if((evhdr.type& TRIGGER_T3_RANDOM) != 0) fp=fpmb; //min bias data
                 else fp = fpout;
             }
             fwrite(&evhdr,1,44,fp);
             for(ils=il_start;ils>(il_start-evhdr.DU_count);ils--){
-                DUn = (EVENTBODY *)DUbuffer[ils];
-                fwrite(DUn,1,2*DUn->length,fp);
-                DUn->GPSseconds = 0;
+                DUn = (uint16_t *)DUbuffer[ils];
+                fwrite(DUn,1,2*DUn[EVT_LENGTH],fp);
+                *(uint32_t *)&DUn[EVT_SECOND] = 0;
             }// that is it, start a new event
             n_written++;
             if(n_written >=eb_max_evts) eb_close();
             eb_event++;
-            DUinfo = (EVENTBODY *)DUbuffer[i];
-            DUn = (EVENTBODY *)DUbuffer[0];
+            DUinfo = (uint16_t *)DUbuffer[i];
+            DUn = (uint16_t *)DUbuffer[0];
             il_start = i;
             i_DUbuffer = i+1;
-            if(((DUn->GPSseconds-DUinfo->GPSseconds)<EBTIMEOUT) && (i_DUbuffer < (0.8*NDU))) break;
-            evhdr.t3_id = DUinfo->event_nr;
-            evhdr.DU_count = 1;
-            evhdr.length = 40+2*DUinfo->length;
-            evhdr.run_id = eb_run;
-            evhdr.event_id = eb_event;
-            evhdr.first_DU = DUinfo->DU_id;
-            evhdr.seconds = DUinfo->GPSseconds;
-            evhdr.nanosec = DUinfo->GPSnanoseconds;
-            evhdr.type = DUinfo->trigger_flag;
-            evhdr.version=EVENTVERSION;
+          if(((*(uint32_t *)&DUn[EVT_SECOND]-*(uint32_t *)&DUinfo[EVT_SECOND])<EBTIMEOUT) &&(i_DUbuffer < (0.8*NDU))) break;
+          evhdr.t3_id = DUinfo[EVT_ID];
+          evhdr.DU_count = 1;
+          evhdr.length = 40+2*DUinfo[EVT_LENGTH];
+          evhdr.run_id = eb_run;
+          evhdr.event_id = eb_event;
+          evhdr.first_DU = DUinfo[EVT_HARDWARE];
+          evhdr.seconds = *(uint32_t *)&DUinfo[EVT_SECOND];
+          evhdr.nanosec = *(uint32_t *)&DUinfo[EVT_NANOSEC];
+          evhdr.type = DUinfo[EVT_T3FLAG];
+          evhdr.version=EVENTVERSION;
         }
     }
 }
