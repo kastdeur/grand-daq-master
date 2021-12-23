@@ -1,9 +1,10 @@
+// Traces.c
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
 //#include "amsg.h"
 #include "scope.h"
 #include "Traces.h"
-#include<stdio.h>
-#include<time.h>
-#include<stdlib.h>
 #define INTSIZE 4
 #define SHORTSIZE 2
 
@@ -110,7 +111,7 @@ void print_du(uint16_t *du)
   printf("\t Acceleration (ADC) X = %d Y = %d Z = %d\n",
          du[EVT_ACCEL_X],du[EVT_ACCEL_Y],du[EVT_ACCEL_Z]);
   printf("\t Battery (ADC) = %d\n",du[EVT_BATTERY]);
-  printf("\t Event version = %d\n",du[EVT_VERSION]);
+  printf("\t Format Firmware version = %d\n",du[EVT_VERSION]);
   printf("\t ADC: sampling frequency = %d MHz, resolution=%d bits\n",
          du[EVT_MSPS],du[EVT_ADC_RES]);
   printf("\t ADC Input channels =0x%x, Enabled Channels=0x%x\n",
@@ -150,7 +151,7 @@ void print_du(uint16_t *du)
   for(ic=1;ic<=4;ic++){
     printf("\t ADC %d:\n\t",ic);
     for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
-      printf("\t%d",(int16_t)du[ioff++]);
+      printf(" %5d",(int16_t)du[ioff++]);
       if((i%12) ==11) printf("\n\t");
     }
     printf("\n");
@@ -174,8 +175,9 @@ void print_grand_event(){
   if((evdu[0] &TRIGGER_T3_MINBIAS)) printf("10 second trigger\n");
   else if((evdu[0] &TRIGGER_T3_RANDOM)) printf("random trigger\n");
   else printf("Shower event\n");
-  printf("      Event Version = %d\n",*evdu++);
-  evptr +=2;
+  ++evdu;
+  printf("      Event Version = %d\n",*evdu);
+  evptr +=3;
   printf("      Number of DU's = %d\n",*evptr);
   while(idu<ev_end){
     evdu = (uint16_t *)(&event[idu]);

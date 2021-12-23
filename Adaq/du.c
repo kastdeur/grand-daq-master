@@ -17,7 +17,9 @@
 #include <sys/time.h>
 #include "Adaq.h"
 #include "amsg.h"
-#include "filter.h"
+
+#define SAMP_FREQ 500.0
+int getNotchFilterCoeffs(double nu_s, double r, int xtraPipe, int *a, int *b, int *aLen, int *bLen);
 
 #define Reg_Rate 0x1E0
 extern int running;
