@@ -39,6 +39,9 @@ typedef struct{
 #define CMDBUF 20 // leave 20 command buffers
 #define CMDSIZE 5000 //Max. size (in shorts) for command (should be able to hold config file)
 
+#define MONBUF 1 // only 1 entry for monitoring
+
+
 #ifdef _MAINDAQ
 DUInfo DUinfo[MAXDU];
 int tot_du;
@@ -46,6 +49,7 @@ shm_struct shm_t2;
 shm_struct shm_t3;
 shm_struct shm_cmd;
 shm_struct shm_eb;
+shm_struct shm_mon;
 //next EB parameters
 int eb_run = 1;
 int eb_run_mode = 0;
@@ -60,6 +64,7 @@ extern shm_struct shm_t2;
 extern shm_struct shm_t3;
 extern shm_struct shm_eb;
 extern shm_struct shm_cmd;
+extern shm_struct shm_mon;
 extern int eb_run ;
 extern int eb_run_mode;
 extern int eb_max_evts ;

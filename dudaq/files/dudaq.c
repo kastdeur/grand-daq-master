@@ -23,6 +23,7 @@
 #include "amsg.h"
 #include "scope.h"
 #include "ad_shm.h"
+#include "du_monitor.h"
 
 int buffer_add_t2(unsigned short *bf,int bfsize,short id);
 int buffer_add_t3(unsigned short *bf,int bfsize,short id);
@@ -33,6 +34,7 @@ shm_struct shm_ev; //!< shared memory containing all event info, including read/
 shm_struct shm_gps; //!< shared memory containing all GPS info, including read/write pointers
 shm_struct shm_ts; //!< shared memory containing all timestamp info, including read/write pointers
 shm_struct shm_cmd; //!< shared memory containing all command info, including read/write pointers
+shm_struct shm_mon; //!< shared memory containing monitoring info
 TS_DATA *timestampbuf;
 GPS_DATA *gpsbuf; //!< buffer to hold GPS information
 extern int errno; //!< the number of the error encountered
@@ -64,7 +66,7 @@ unsigned int mask;      //!< signal mask
 
 pid_t pid_scope;        //!< process id of the process reading/writing the fpga
 pid_t pid_socket;       //!< process id of the process reading/writing to the central DAQ
-pid_t pid_charge;       //!< process id of the process reading/writing the charge controller (RS232)
+pid_t pid_monitor;       //!< process id of the process reading/writing the monitor info
 uint8_t stop_process=0; //!< after an interrupt this flag is set so that all forked processes are killed
 
 
@@ -77,6 +79,7 @@ void remove_shared_memory()
     ad_shm_delete(&shm_ts);
     ad_shm_delete(&shm_gps);
     ad_shm_delete(&shm_cmd);
+    ad_shm_delete(&shm_mon);
 }
 
 /*!
@@ -91,7 +94,7 @@ void clean_stop (int signum)
     remove_shared_memory();
     stop_process = 1;
     kill(pid_scope,9);
-    kill(pid_charge,9);
+    kill(pid_monitor,9);
     kill(pid_socket,9);
 }
 
@@ -658,6 +661,14 @@ void du_scope_main()
   }
 }
 
+void du_monitor_main()
+{
+  monitor_open();
+  while(1){
+    monitor_read();
+  }
+}
+
 /*!
  \fn void du_get_station_id()
  * Obtains station id from the ip address of the machine.
@@ -835,17 +846,25 @@ int main(int argc, char **argv)
         printf("Cannot create CMD shared memory !!\n");
         exit(-1);
     }
-  if((pid_scope = fork()) == 0) du_scope_main();
+    if(ad_shm_create(&shm_mon,MONBUF,N_MON) <0){
+        printf("Cannot create Monitor shared memory !!\n");
+        exit(-1);
+    }
+    if((pid_scope = fork()) == 0) du_scope_main();
+    if((pid_monitor = fork()) == 0) du_monitor_main(argc,argv);
     if((pid_socket = fork()) == 0) du_socket_main(argc,argv);
     while(stop_process == 0){
-        pid = waitpid (WAIT_ANY, &status, 0);
-        if(pid == pid_scope && stop_process == 0) {
-            if((pid_scope = fork()) == 0) du_scope_main();
-        }
-        if(pid == pid_socket && stop_process == 0) {
-            if((pid_socket = fork()) == 0) du_socket_main(argc,argv);
-        }
-        sleep(1);
+      pid = waitpid (WAIT_ANY, &status, 0);
+      if(pid == pid_scope && stop_process == 0) {
+	if((pid_scope = fork()) == 0) du_scope_main();
+      }
+      if(pid == pid_monitor && stop_process == 0) {
+	if((pid_monitor = fork()) == 0) du_monitor_main();
+      }
+      if(pid == pid_socket && stop_process == 0) {
+	if((pid_socket = fork()) == 0) du_socket_main(argc,argv);
+      }
+      sleep(1);
     }
     remove_shared_memory();
 }

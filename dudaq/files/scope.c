@@ -29,6 +29,7 @@
 #include<errno.h>
 
 #include "ad_shm.h"
+#include "du_monitor.h"
 #include "scope.h"
 
 
@@ -45,7 +46,7 @@ uint32_t page_offset;
 extern int station_id;
 extern shm_struct shm_ev;
 uint16_t *t3buf;
-extern shm_struct shm_gps,shm_ts;
+extern shm_struct shm_gps,shm_ts,shm_mon;
 extern GPS_DATA *gpsbuf;
 extern TS_DATA *timestampbuf;
 uint16_t *evtbuf=NULL;
@@ -95,11 +96,13 @@ void scope_raw_write(uint32_t reg_addr, uint32_t value)
  \param bf pointer to location where data can be stored
  \retval number of bytes read
  */
-int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value) //new, reading from AXI
+
+#define scope_raw_read(reg_addr) *((unsigned int *)(axi_ptr+page_offset+reg_addr))
+/*int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value) //new, reading from AXI
 {
   *value = *((unsigned int *)(axi_ptr+page_offset+reg_addr));
   return(1);
-}
+  }*/
 /*!
  \func void scope_flush)
  \brief empty routine
@@ -434,8 +437,9 @@ int scope_read_event(int32_t ioff)
   int offset = ptr_evt*evtlen;
   int32_t rread,nread,ntry;
   uint32_t Is_Data,tbuf,*ebuf;
+  uint16_t *sbuf;
   struct tm tt;
-  int length;
+  int length,i;
   double fracsec;
   uint32_t *sec,*nanosec;
   int next_write = *(shm_ts.next_write);
@@ -444,9 +448,9 @@ int scope_read_event(int32_t ioff)
   if(evtbuf == NULL) return(-2);
   if(timestampbuf == NULL) return(-3);
   scope_raw_write(Reg_GenControl,GENCTRL_EVTREAD);
-  scope_raw_read(Reg_GenStatus,&Is_Data);
+  Is_Data = scope_raw_read(Reg_GenStatus);
   if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
-    scope_raw_read(Reg_Data,&tbuf);
+    tbuf = scope_raw_read(Reg_Data);
   } else return(0);
   if((tbuf>>16) == 0xADC0 || evtbuf == NULL) length = (tbuf&0xffff);
   else length = -1;
@@ -454,10 +458,38 @@ int scope_read_event(int32_t ioff)
     //printf("Offset = %d (%d %d)\n",offset,evtlen,length);
     ebuf = (uint32_t *)&evtbuf[offset];
     *ebuf++ = tbuf;
-    while(length>0){
-      scope_raw_read(Reg_Data,ebuf++);
-      length-=2;
+    for(i=2;i<HEADER_EVT;i+=2){
+      *ebuf++ = scope_raw_read(Reg_Data);
     }
+    //printf("%d %d\n",i,length);
+    sbuf = (uint16_t *)ebuf;
+    length -=HEADER_EVT;
+    //printf("%d %d %d\n",i,length,(int)(sbuf-&evtbuf[offset]));
+    while(length>=0){
+      *ebuf++ = scope_raw_read(Reg_Data);
+      //scope_raw_read(Reg_Data,&tbuf);
+      //*sbuf++ = (uint16_t)((tbuf)&0xffff);
+      //*sbuf++ = (uint16_t)((tbuf>>16)&0xffff);
+      //usleep(1);
+      length-=2;
+      /*scope_raw_read(Reg_GenStatus,&Is_Data);
+      if(length>0  && (Is_Data&(GENSTAT_EVTFIFO)) != 0){
+	printf("Not enough data %d!\n",length);
+	break;
+	}*/
+    }
+    Is_Data = scope_raw_read(Reg_GenStatus);
+    /*if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
+      printf("Still data left!\n");
+      length = 100;
+      while(length>0 && (Is_Data&(GENSTAT_EVTFIFO)) == 0){
+	scope_raw_read(Reg_Data,&tbuf);
+	//printf("%x\t",tbuf);
+	scope_raw_read(Reg_GenStatus,&Is_Data);
+	length--;
+      }
+      //printf("\n");
+      }*/
     evtbuf[offset+EVT_HDRLEN] = HEADER_EVT;
     sec = (uint32_t *)&evtbuf[offset+EVT_SECOND];
     tt.tm_sec = (evtbuf[offset+EVT_STATSEC]&0xff)-evtbuf[offset+EVT_LEAP];    // Convert GPS in a number of seconds
@@ -474,6 +506,13 @@ int scope_read_event(int32_t ioff)
     evtbuf[offset+EVT_TRIGGERPOS] = shadowlist[Reg_Time1_Pre>>1]+shadowlist[Reg_Time_Common>>1];
     evtbuf[offset+EVT_ID] = evtnr++;
     evtbuf[offset+EVT_HARDWARE] = station_id;
+    evtbuf[offset+EVT_ATM_TEMP] = shm_mon.Ubuf[MON_TEMP];
+    evtbuf[offset+EVT_ATM_PRES] = shm_mon.Ubuf[MON_PRESSURE];
+    evtbuf[offset+EVT_ATM_HUM] = shm_mon.Ubuf[MON_HUMIDITY];
+    evtbuf[offset+EVT_ACCEL_X] = shm_mon.Ubuf[MON_AccX];
+    evtbuf[offset+EVT_ACCEL_Y] = shm_mon.Ubuf[MON_AccY];
+    evtbuf[offset+EVT_ACCEL_Z] = shm_mon.Ubuf[MON_AccZ];
+    evtbuf[offset+EVT_BATTERY] = shm_mon.Ubuf[MON_BATTERY];
     //printf("Reading event %08x %d %u.%09d %g\n",tbuf,evtbuf[EVT_STATSEC]&0xff,*sec,*nanosec,fracsec);
     timestampbuf[next_write].ts_seconds = *sec;
     timestampbuf[next_write].ts_nanoseconds = *nanosec;
@@ -490,10 +529,10 @@ int scope_read_event(int32_t ioff)
     if(length<0) length = 10000;
     //printf("Flushing\n");
     while(length>0 && ((Is_Data&GENSTAT_EVTFIFO) == 0)){
-      scope_raw_read(Reg_Data,&tbuf);
+      tbuf = scope_raw_read(Reg_Data);
       length--;
-      scope_raw_read(Reg_GenStatus,&Is_Data);
-    }
+      Is_Data = scope_raw_read(Reg_GenStatus);
+      }
     return(-1);
   }
 }
@@ -513,16 +552,16 @@ int32_t scope_read_pps()  //27/7/2012 ok
   int length;
   
   if(axi_ptr == NULL) return(-1);
-  scope_raw_read(Reg_GenStatus,&Is_Data);
+  Is_Data = scope_raw_read(Reg_GenStatus);
   scope_raw_write(Reg_GenControl,0);
   if((Is_Data&(GENSTAT_PPSFIFO)) == 0){
-    scope_raw_read(Reg_Data,&tbuf);
+    tbuf = scope_raw_read(Reg_Data);
     if((tbuf>>16) != 0xFACE){
       length = 1000;
       while(length>0 && ((Is_Data&GENSTAT_PPSFIFO) == 0)){
-	scope_raw_read(Reg_Data,&tbuf);
+	tbuf = scope_raw_read(Reg_Data);
 	length--;
-	scope_raw_read(Reg_GenStatus,&Is_Data);
+	Is_Data = scope_raw_read(Reg_GenStatus);
       }
       return(-1);
     }
@@ -530,7 +569,7 @@ int32_t scope_read_pps()  //27/7/2012 ok
   pbuf = (uint32_t *)&ppsbuf[offset];
   *pbuf++ = tbuf;
   for(length = 1;length<WCNT_PPS;length++){
-    scope_raw_read(Reg_Data,pbuf++);
+    *pbuf++ = scope_raw_read(Reg_Data);
   }
   ctp = *(uint32_t *)&ppsbuf[offset+PPS_CTP];
   ctp = ctp&0x7fffffff;
@@ -572,12 +611,12 @@ int scope_read(int ioff)
 #ifdef Fake
   return(scope_fake_event(ioff));
 #else
-  scope_raw_read(Reg_GenStatus,&Is_Data);
+  Is_Data = scope_raw_read(Reg_GenStatus);
   if((Is_Data&(GENSTAT_PPSFIFO)) == 0){
     scope_read_pps();
   }
   scope_raw_write(Reg_GenControl,GENCTRL_EVTREAD);
-  scope_raw_read(Reg_GenStatus,&Is_Data);
+  Is_Data = scope_raw_read(Reg_GenStatus);
   if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
     scope_read_event(ioff);
   }
