@@ -57,7 +57,6 @@ int n_evt = 0;
 int32_t evgps=0;                //!< pointer to next GPS info
 int32_t prevgps = 0;
 
-int16_t cal_type=CAL_END;       //!< what to calibrate (END = nothing)
 int32_t firmware_version;       //!< version of the firmware of the scope
 
 int leap_sec = 0;               //!< Number of leap seconds in UTC; read from GPS unit
@@ -79,34 +78,13 @@ int32_t shadow_filled = 0;                               //!< the shadow list is
 int16_t setsystime=0;          //!< check if system time is set
 uint16_t evtlen;
 
-/*!
- \func void scope_raw_write(unsigned int *buf, int len)
- \brief writes a buffer to the digitizer
- \param buf pointer to the data to send
- \param           len number of bytes to send
- */
 void scope_raw_write(uint32_t reg_addr, uint32_t value)
 {
   *((unsigned int *)(axi_ptr+page_offset+reg_addr)) = value;
 }
 
-/*!
- \func int scope_raw_read(unsigned char *bf)
- \brief reads data from digitizer and stores it in a buffer
- \param bf pointer to location where data can be stored
- \retval number of bytes read
- */
-
 #define scope_raw_read(reg_addr) *((unsigned int *)(axi_ptr+page_offset+reg_addr))
-/*int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value) //new, reading from AXI
-{
-  *value = *((unsigned int *)(axi_ptr+page_offset+reg_addr));
-  return(1);
-  }*/
-/*!
- \func void scope_flush)
- \brief empty routine
- */
+
 void scope_flush()
 {
   if(axi_ptr == NULL) return;
@@ -114,21 +92,16 @@ void scope_flush()
   scope_raw_write(Reg_GenControl,0x00000000);
 }
 
-/*!
- \func int scope_open()
- \brief opens connection to digitizer
- \retval -1 failure
- \retval         1 succes
- */
-int scope_open()        // Is this needed?
+int scope_open()  
 {
   unsigned int addr, page_addr;
   unsigned int page_size=sysconf(_SC_PAGESIZE);
 
+#ifdef Fake
+  return(1);
+#endif
   if(dev != 0) close(dev); 
   axi_ptr = NULL;
-#ifndef Fake
-  printf("Trying to open !%s!\n",DEVFILE);
   if ((dev = open(DEVFILE, O_RDWR)) == -1) {
     fprintf(stderr, "Error opening scope device file %s for read/write\n", DEVFILE);
     return(-1);
@@ -142,17 +115,9 @@ int scope_open()        // Is this needed?
     perror("opening scope\n");
     exit(-1);
   }
-  
-  printf("Done opening dev = %d\n",(int)dev);
-#endif
-  sleep(1);
   return(1);
 }
 
-/*!
- \func void scope_close()
- \brief closes scope communication
- */
 void scope_close() 
 {
 #ifndef Fake
@@ -162,19 +127,6 @@ void scope_close()
 #endif
 }
 
-/*!
- \func void scope_get_parameterlist(char list)
- \brief request scope parameters (not reading them!)
- \param list
- */
-void scope_get_parameterlist(uint8_t list)
-{
-}
-
-/*!
- \func void scope_reset()
- \brief performs a soft reset on the scope
- */
 void scope_reset()
 {
   if(axi_ptr == NULL) return;
@@ -182,10 +134,6 @@ void scope_reset()
   scope_raw_write(Reg_Dig_Control,0x00000000); // does not clear registers
 }
 
-/*!
- \func void scope_start_run()
- \brief starts the run
- */
 void scope_start_run()
 {
   if(axi_ptr == NULL) return;
@@ -193,10 +141,6 @@ void scope_start_run()
   scope_set_parameters(Reg_Dig_Control,shadowlist[Reg_Dig_Control>>2] |(CTRL_PPS_EN | CTRL_SEND_EN ),1);
 }
 
-/*!
- \func  void scope_stop_run()
- \brief disables output
- */
 void scope_stop_run()
 {
   printf("Scope stop run\n");
@@ -205,12 +149,6 @@ void scope_stop_run()
   scope_flush();
 }
 
-/*!
- \func  scope_set_parameters(unsigned short int *data,int to_shadow)
- \brief writes a parameter list to the scope (and the shadowlist)
- \param data contains the parameter and its value
- \param to_shadow  If 1 writes to the shadowlist, otherwise do not.
- */
 void scope_set_parameters(uint32_t reg_addr, uint32_t value,uint32_t to_shadow)
 {
   if(to_shadow == 1) shadowlist[reg_addr>>2] = value;
@@ -219,39 +157,18 @@ void scope_set_parameters(uint32_t reg_addr, uint32_t value,uint32_t to_shadow)
   usleep(1000);
 }
 
-/*!
- \func void scope_reboot()
- \brief resets the fpga
- */
 void scope_reboot()
 {
   scope_reset();                // for now the same as a reset
 }
 
-/*!
- \func void scope_print_parameters(int list)
- \brief dummy routine
- \param list number
- */
-void scope_print_parameters(int32_t list) //to be checked
-{
-}
-/*!
- \func void scope_copy_shadow()
- \brief copy every parameter from the shadowlist into the fpga
- */
 void scope_copy_shadow()
 {
   for(int i=0;i<Reg_End;i+=4){
-    //printf("Set Param %x %x\n",i,shadowlist[i>>2]);
     scope_set_parameters(i,shadowlist[i>>2],0);
   }
-  
 }
-/*!
- \func void scope_init_shadow()
- \brief initializes the shadow list
- */
+
 void scope_init_shadow()
 {
   int32_t list;
@@ -260,11 +177,7 @@ void scope_init_shadow()
   memset(shadowlist,0,sizeof(shadowlist));
 }
 
-/*!
- \func void scope_initialize()
- \brief initializes shadow memory, resets the digitizer and stops the run
- */
-void scope_initialize() //tested 24/7/2012
+void scope_initialize() 
 {
   scope_reset();    // reset the scope
   scope_init_shadow();
@@ -423,21 +336,12 @@ int scope_fake_event(int32_t ioff)
 }
 #endif
 
-/*!
- \func int scope_read_event(int32_t ioff)
- \brief read an event from the fpga
- \param ioff 1 to update the event buffer. When 0 no update is made
- \retval -10 too much data in the event
- \retval -11 not all data is read
- \retval SCOPE_EVENT succesfully read event
- */
 int scope_read_event(int32_t ioff)
 {
   static uint16_t evtnr=0;
   int offset = ptr_evt*evtlen;
   int32_t rread,nread,ntry;
   uint32_t Is_Data,tbuf,*ebuf;
-  uint16_t *sbuf;
   struct tm tt;
   int length,i;
   double fracsec;
@@ -455,41 +359,17 @@ int scope_read_event(int32_t ioff)
   if((tbuf>>16) == 0xADC0 || evtbuf == NULL) length = (tbuf&0xffff);
   else length = -1;
   if(length>0 &&evtbuf != NULL){
-    //printf("Offset = %d (%d %d)\n",offset,evtlen,length);
     ebuf = (uint32_t *)&evtbuf[offset];
     *ebuf++ = tbuf;
     for(i=2;i<HEADER_EVT;i+=2){
       *ebuf++ = scope_raw_read(Reg_Data);
     }
-    //printf("%d %d\n",i,length);
-    sbuf = (uint16_t *)ebuf;
     length -=HEADER_EVT;
-    //printf("%d %d %d\n",i,length,(int)(sbuf-&evtbuf[offset]));
     while(length>=0){
       *ebuf++ = scope_raw_read(Reg_Data);
-      //scope_raw_read(Reg_Data,&tbuf);
-      //*sbuf++ = (uint16_t)((tbuf)&0xffff);
-      //*sbuf++ = (uint16_t)((tbuf>>16)&0xffff);
-      //usleep(1);
       length-=2;
-      /*scope_raw_read(Reg_GenStatus,&Is_Data);
-      if(length>0  && (Is_Data&(GENSTAT_EVTFIFO)) != 0){
-	printf("Not enough data %d!\n",length);
-	break;
-	}*/
     }
     Is_Data = scope_raw_read(Reg_GenStatus);
-    /*if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
-      printf("Still data left!\n");
-      length = 100;
-      while(length>0 && (Is_Data&(GENSTAT_EVTFIFO)) == 0){
-	scope_raw_read(Reg_Data,&tbuf);
-	//printf("%x\t",tbuf);
-	scope_raw_read(Reg_GenStatus,&Is_Data);
-	length--;
-      }
-      //printf("\n");
-      }*/
     evtbuf[offset+EVT_HDRLEN] = HEADER_EVT;
     sec = (uint32_t *)&evtbuf[offset+EVT_SECOND];
     tt.tm_sec = (evtbuf[offset+EVT_STATSEC]&0xff)-evtbuf[offset+EVT_LEAP];    // Convert GPS in a number of seconds
@@ -498,7 +378,6 @@ int scope_read_event(int32_t ioff)
     tt.tm_mday = (evtbuf[offset+EVT_DAYMONTH]>>8)&0xff;
     tt.tm_mon = (evtbuf[offset+EVT_DAYMONTH]&0xff)-1;
     tt.tm_year = evtbuf[offset+EVT_YEAR] - 1900;
-    //printf("Event timestamp %02d/%02d/%04d %2d:%2d:%2d\n",tt.tm_mday,tt.tm_mon+1,tt.tm_year+1900,tt.tm_hour,tt.tm_min,tt.tm_sec);
     *sec = (unsigned int)timegm(&tt);    
     fracsec = (double)(*(uint32_t *)&evtbuf[offset+EVT_CTD])/(double)(*(uint32_t *)&evtbuf[offset+EVT_CTP]);
     nanosec = (uint32_t *)&evtbuf[offset+EVT_NANOSEC];
@@ -513,7 +392,6 @@ int scope_read_event(int32_t ioff)
     evtbuf[offset+EVT_ACCEL_Y] = shm_mon.Ubuf[MON_AccY];
     evtbuf[offset+EVT_ACCEL_Z] = shm_mon.Ubuf[MON_AccZ];
     evtbuf[offset+EVT_BATTERY] = shm_mon.Ubuf[MON_BATTERY];
-    //printf("Reading event %08x %d %u.%09d %g\n",tbuf,evtbuf[EVT_STATSEC]&0xff,*sec,*nanosec,fracsec);
     timestampbuf[next_write].ts_seconds = *sec;
     timestampbuf[next_write].ts_nanoseconds = *nanosec;
     timestampbuf[next_write].event_nr = evtbuf[offset+EVT_ID];
@@ -523,11 +401,9 @@ int scope_read_event(int32_t ioff)
     *shm_ts.next_write = next_write;
     ptr_evt +=ioff;
     if(ptr_evt>=BUFSIZE) ptr_evt = 0; // remember: circular buffer
-    //printf("Next offset = %d\n",ptr_evt*evtlen);
     return(SCOPE_EVENT);                  // success!
   } else{ //flushing, but why???
     if(length<0) length = 10000;
-    //printf("Flushing\n");
     while(length>0 && ((Is_Data&GENSTAT_EVTFIFO) == 0)){
       tbuf = scope_raw_read(Reg_Data);
       length--;
@@ -539,13 +415,7 @@ int scope_read_event(int32_t ioff)
 
 
 
-/*!
- \func int32_t scope_read_pps()
- \brief read pps, convert timestamp to GPS time, update circular GPS buffer
- \retval -7 error in reading the PPS
- \retval SCOPE_GPS OK
- */
-int32_t scope_read_pps()  //27/7/2012 ok
+int32_t scope_read_pps()  
 {
   int offset = evgps*WCNT_PPS;
   uint32_t Is_Data,tbuf,*pbuf,ctp;
@@ -573,8 +443,6 @@ int32_t scope_read_pps()  //27/7/2012 ok
   }
   ctp = *(uint32_t *)&ppsbuf[offset+PPS_CTP];
   ctp = ctp&0x7fffffff;
-  //printf("PPS %d %u %02d:%02d:%02d-%d %g\n",evgps,ctp ,(ppsbuf[offset+PPS_MINHOUR])&0xff,(ppsbuf[offset+PPS_MINHOUR]>>8)&0xff,ppsbuf[offset+PPS_STATSEC]&0xff,
-  // ppsbuf[offset+PPS_LEAP],*(float *)&ppsbuf[offset+PPS_OFFSET]);
   prevgps = evgps;
   evgps++;
   if(evgps>=GPSSIZE)evgps = 0;
@@ -582,24 +450,6 @@ int32_t scope_read_pps()  //27/7/2012 ok
   return(SCOPE_GPS);
 }
 
-
-/*!
- \func int scope_read(int ioff)
- \brief reads data from a scope in the appropriate buffer.
- \param ioff after reading the pointers to the buffers
- (event/monitor) are increased by ioff
- \retval  0 No Data
- \retval        -1 First word not a header
- \retval        -2 Only start-of-message read
- \retval        -3 Bad data identifier
- \retval -4 Error reading scope parameters
- \retval -5 Cannot read event header
- \retval -6 Error reading ADC values
- \retval -7 Error reading GPS parameters
- \retval SCOPE_PARAM successfully read scope parameters
- \retval SCOPE_EVENT successfully read scope event
- \retval SCOPE_GPS succesfully read GPS PPS info
- */
 
 int scope_read(int ioff)
 {
@@ -610,7 +460,7 @@ int scope_read(int ioff)
   
 #ifdef Fake
   return(scope_fake_event(ioff));
-#else
+#endif
   Is_Data = scope_raw_read(Reg_GenStatus);
   if((Is_Data&(GENSTAT_PPSFIFO)) == 0){
     scope_read_pps();
@@ -620,25 +470,14 @@ int scope_read(int ioff)
   if((Is_Data&(GENSTAT_EVTFIFO)) == 0){
     scope_read_event(ioff);
   }
-#endif
   return(0);
 }
 
-/*!
- \func int scope_no_run_read()
- \brief reads data from scope, meant to use if there is no run
- \retval scope_read(0)
- */
 int scope_no_run_read()
 {
   return scope_read(0);
 }
 
-/*!
- \func int scope_run_read()
- \brief reads data from scope during a run. If there has not been data for more than 11 sec, reset the scope and restart the run.
- \retval scope_read(1)
- */
 int scope_run_read()
 {
   int iret;

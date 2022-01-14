@@ -19,22 +19,6 @@
 #define ADC_RESOLUTION 14
 
 /*----------------------------------------------------------------------*/
-#define GPS_EPOCH_UNIX  315964800 //!< GPS to unix offst, not counting leap sec
-
-/* Message start / end flags */
-#define MSG_START    0x99 //!< start of fpga message
-#define MSG_END      0x66 //!< end of fpga message
-
-
-/* Time stamp offsets (within 7B time field) */
-
-#define TIME_YEAR       0
-#define TIME_MON        2
-#define TIME_DAY        3
-#define TIME_HOUR       4
-#define TIME_MIN        5
-#define TIME_SEC        6
-
 
 /*----------------------------------------------------------------------*/
 /* Maxima / minima */
@@ -53,8 +37,8 @@
 #define Reg_TestPulse_ChRead  0x004
 #define Reg_Time_Common       0x006
 #define Reg_Inp_Select        0x008
-#define Reg_Spare_A           0x00A
-#define Reg_Spare_B           0x00C
+#define Reg_Battery_Off       0x00A
+#define Reg_Battery_On        0x00C
 #define Reg_Spare_C           0x00E
 #define Reg_Time1_Pre         0x010
 #define Reg_Time1_Post        0x012
@@ -127,12 +111,6 @@
 #define Reg_TestTrace         0x1DC
 #define Reg_Rate              0x1E0
 #define Reg_End               0x1FC
-/* Message definitions  Legacy*/
-
-#define ID_PARAM_PPS          0xC4
-#define ID_PARAM_EVENT        0xC0
-
-#define ID_GPS_VERSION        4
 
 /*----------------------------------------------------------------------*/
 /* Control register bits */
@@ -151,14 +129,7 @@
 #define GENSTAT_DMAFIFO  (1<<26)
 #define GENCTRL_EVTREAD  (1<<25)
 
-#define TRIG_10SEC    (1 << 5)
-#define TRIG_CAL      (1 << 6)
-
 // general event types
-#define SELF_TRIGGERED  0x0001
-#define CALIB_TRIGGER   0x0004
-#define EXT_T3_TRIGGER  0x0008
-#define RANDOM_TRIGGER  0x0010
 #define TRIGGER_T3_MINBIAS 0x1000
 #define TRIGGER_T3_RANDOM  0x8000
 
@@ -241,67 +212,12 @@
 #define EVT_FILTER3       192
 #define EVT_FILTER4       224
 
-#define EVENT_BCNT        2 //bytecount
-#define EVENT_TRIGMASK    4
-#define EVENT_GPS         6
-#define EVENT_STATUS     13 
-#define EVENT_CTD        14
-#define EVENT_LENCH1     18
-#define EVENT_LENCH2     20
-#define EVENT_LENCH3     22
-#define EVENT_LENCH4     24
-#define EVENT_THRES1CH1  26
-#define EVENT_THRES2CH1  28
-#define EVENT_THRES1CH2  30
-#define EVENT_THRES2CH2  32
-#define EVENT_THRES1CH3  34
-#define EVENT_THRES2CH3  36
-#define EVENT_THRES1CH4  38
-#define EVENT_THRES2CH4  40
-#define EVENT_CTRL       42
-#define EVENT_WINDOWS    54
-#define EVENT_ADC        70
-
 /*----------------------------------------------------------------------*/
-/* Error Definition */
-#define ERROR_BCNT 2
-#define ERROR_ID   4
-#define ERROR_END  6
 
-/*----------------------------------------------------------------------*/
-/* Calibration states */
-#define CAL_END         0
-#define CAL_OFFSET      1
-#define CAL_GAIN        2
-
-/* Calibration targets */
-#define CAL_OFFSET_TARG      0
-#define CAL_OFFSET_WIDTH     2
-
-#define CAL_OFFSET_OTARG      0
-#define CAL_OFFSET_OWIDTH     2
-
-#define CAL_GAIN_TARG      -7250
-#define CAL_GAIN_WIDTH      2
-
-#define CAL_GAIN_OTARG      -7000
-#define CAL_GAIN_OWIDTH      12
-
-/*----------------------------------------------------------------------*/
-/* Trigger rate divider base frequency */
-#define TRIG_RATE_BASE_HZ 4800  //!< maximal fpga generated trigger frequency
-
-/*----------------------------------------------------------------------*/
-/* Macros */
-#define FIRMWARE_VERSION(x) (10*((x>>20)&0xf)+((x>>16)&0xf)) //!< Calculation of Firmware version number
-#define FIRMWARE_SUBVERSION(x)   (10*((x>>12)&0xf)+((x>>9)&0x7)) //!< Calculation of subversion number
-#define SERIAL_NUMBER(x)    (100*((x>>8)&0x1)+10*((x>>4)&0xf)+((x>>0)&0xf)) //!< serial number of digital board
 /*
   buffer definitions for the scope readout process.
  */
-#define DEV_READ_BLOCK 100      //!< fpga Device read blocksize, in Bytes
 
-#define MAX_RATE 1000            //!< maximum event rate, in Hz
 #define BUFSIZE 3000            //!< store up to 3000 events in circular buffer
 
 #define GPSSIZE 35              //!< buffer upto 35 GPS seconds info in circular buffer
@@ -309,30 +225,8 @@
 
 // next: what did we read from the scope?
 
-#define SCOPE_PARAM 1          //!< return code for reading a parameter list
 #define SCOPE_EVENT 2          //!< return code for reading an event
 #define SCOPE_GPS   3          //!< return code for reading a PPS message
-
-#define PARAM_NUM_LIST 0x18     //!< Number of parameter lists for the fpga
-#define PARAM_LIST_MAXSIZE 46   //!< maximal listsize 46 bytes
-
-
-typedef struct
-{
-  uint16_t event_nr;        //!< an event number
-  uint32_t ts_seconds;      //!< second marker
-  uint32_t t3calc;          //!< was the T3 time calculated (1/0)
-  uint32_t t3_nanoseconds;  //!< proper timing
-  uint32_t t2_nanoseconds;  //!< rough timing for t2 purposes only
-  uint32_t CTD;             //!< clock tick of the trigger
-  uint32_t trig_flag;       //!< trigger flag
-  uint32_t evsize;          //!< size of the event
-  float quant1;             //!< quant error previous PPS
-  float quant2;             //!< quant error next PPS
-  uint32_t CTP;             //!< Number of clock ticks between PPS pulses
-  int16_t sync;             //!< Positive or Negative clock edge
-  uint8_t buf[MAX_READOUT]; //!< raw data buffer
-} EV_DATA;
 
 typedef struct
 {
@@ -351,33 +245,23 @@ typedef struct
 
 // the routines
 
-void scope_set_parameters(uint32_t reg_addr, uint32_t value,uint32_t to_shadow);
 void scope_raw_write(uint32_t reg_addr, uint32_t value);
-int32_t scope_raw_read(uint32_t reg_addr, uint32_t *value);
+void scope_flush();
 int scope_open();
-void scope_get_parameterlist(uint8_t list);
+void scope_close();
 void scope_reset();
 void scope_start_run();
 void scope_stop_run();
+void scope_set_parameters(uint32_t reg_addr, uint32_t value,uint32_t to_shadow);
 void scope_reboot();
-void scope_print_parameters(int32_t list);
-void scope_print_pps(uint8_t *buf);
-void scope_print_event(uint8_t *buf);
-void scope_initialize();
+void scope_copy_shadow();
 void scope_init_shadow();
-void scope_fill_shadow(int8_t *ppsbuf);
-int8_t *scope_get_shadow(int32_t list);
-int scope_read(int ioff);
-int scope_read_pps();
+void scope_initialize();
+void scope_create_memory();
 int scope_read_event(int32_t ioff);
-int scope_read_error();
+int scope_read_pps();
+int scope_read(int ioff);
 int scope_no_run_read();
 int scope_run_read();
-int scope_cal_read();
-int scope_calc_t3nsec(EV_DATA *buf);
-int scope_calc_evnsec();
-void scope_close();
-void scope_create_memory();
-void scope_copy_shadow();
 void scope_event_to_shm(uint16_t evnr,uint16_t trflag,uint16_t sec,uint32_t ssec);
 //

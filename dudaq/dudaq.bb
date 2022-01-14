@@ -10,7 +10,6 @@ LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda
 SRC_URI = "file://dudaq.c \
 	   file://dudaq.h \
 	   file://amsg.h \
-	   file://Adaq.h \ 		  
 	   file://ad_shm.c \
 	   file://ad_shm.h \
 	   file://buffer.c \

@@ -37,7 +37,6 @@
 #define GUI_INITIALIZE 402         //!< Message tag as defined by DAQ group
 #define GUI_START_RUN 403          //!< Message tag as defined by DAQ group
 #define GUI_STOP_RUN 404           //!< Message tag as defined by DAQ group
-#define GUI_TRIGGER 405            //!< Message tag as defined by DAQ group
 #define GUI_DELETE_RUN 406         //!< Message tag as defined by DAQ group
 #define GUI_BC_SETATTENUATION  450  //!< Message tag as defined by DAQ group
 #define GUI_BC_SWITCHIO  451        //!< Message tag as defined by DAQ group

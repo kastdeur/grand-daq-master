@@ -1,4 +1,4 @@
-/***
+/*** \file ad_shm.h
 DAQ shared memory definitions
 Version:1.0
 Date: 17/2/2020
@@ -13,14 +13,14 @@ Altering the code without explicit consent of the author is forbidden
 #include<sys/shm.h>
 
 typedef struct{
-  int shmid;
-  int *next_read;
-  int *next_readb; // t3 messages are read by 2 processes
-  int *next_write;
-  int *nbuf;
-  int *size;
-  char *buf;
-  uint16_t *Ubuf;
+  int shmid; /**< shared memory identifier */
+  int *next_read;  /**< pointer to the next block to read out in Ubuf */
+  int *next_readb; /**< pointer to the next block to read out in Ubuf by a second process */
+  int *next_write; /**< Pointer to the next position where to write a block of data */
+  int *nbuf; /**< number of data blocks in the circular buffer */
+  int *size; /**< size (in shorts) of a data block */
+  char *buf; /**< pointer to the buffer */
+  uint16_t *Ubuf; /**< our data is in uint16, so a uint16 pointer */
 }shm_struct;
 
 int ad_shm_create(shm_struct *ptr,int nbuf,int size);
