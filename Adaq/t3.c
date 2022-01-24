@@ -229,7 +229,7 @@ void t3_maket3()
     }
     // trigger condition is easy
     if((evsize>=NTRIG &&evnear>=NNEAR) || isten == 1 || israndom == 1) {
-      if(isten == 1) printf("Found a T10 with %d stations T=%u\n",evsize,t2evts[ind].sec);
+      //if(isten == 1) printf("Found a T10 with %d stations T=%u\n",evsize,t2evts[ind].sec);
       //start creating the list to send
       t3list[0] = 3; // length before adding a station
       if(isten == 1) t3list[1] = DU_GET_MINBIAS_EVENT;

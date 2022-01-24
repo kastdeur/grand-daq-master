@@ -18,13 +18,40 @@ def VerifyRanges(tp):
 #testpulse
   value = app.getEntry("Test Pulse")
   if value != None:
-    if value < 0:
-      value = 0
-    elif value>255:
-      value = 255
+    value = int(app.getEntry("Test Pulse"))
+    if value != 0:
+      if value  < 124: value = 124
+      divider  =  0
+      oldrate = 1000001
+      for idiv in range (1,255):
+        incr = 1
+        if (idiv > 224): incr = 128
+        elif (idiv > 192): incr = 64
+        elif (idiv > 160): incr = 32
+        elif (idiv > 128): incr = 16
+        elif (idiv > 96): incr = 8
+        elif (idiv > 64): incr = 4
+        elif (idiv > 32): incr = 2
+        divider += incr
+        newrate = int(1000000/divider)
+        if value >= newrate and value < oldrate :
+          value = newrate
+        oldrate = newrate
   else:
     value = 0;
   app.setEntry("Test Pulse",int(value))
+  voltl = app.getEntry("BatLow")
+  if voltl == None: voltl = 5
+  if voltl < 5: voltl = 5
+  volth = app.getEntry("BatHigh")
+  if volth == None: volth = 15
+  if volth > 15: volth = 15
+  if voltl > (volth - 2):
+    if voltl < 7: voltl = 5
+    if voltl > 12: voltl = 12
+    volth = voltl + 2
+  app.setEntry("BatLow",voltl)
+  app.setEntry("BatHigh",volth)
 # All timings
   Tover = app.getEntry("Tover")
   if Tover != None:
@@ -326,9 +353,9 @@ def DUfile(button):
             else:
               app.setOptionBox("Trigger","(not Ch 1) AND Ch 2",True)
             if (value & 1<<4) == 0:
-              app.setOptionBox("Trigger","External",False)
+              app.setOptionBox("Trigger","Internal",False)
             else:
-              app.setOptionBox("Trigger","External",True)
+              app.setOptionBox("Trigger","Internal",True)
             if (value & 1<<5) == 0:
               app.setOptionBox("Trigger","10 sec",False)
             else:
@@ -359,17 +386,40 @@ def DUfile(button):
               app.setOptionBox("Trigger","Channel 4",True)
           if address == 4:
             value =int(words[2],0)
+            rate = 0
             for ch in range(1,5):
               if (value & 1<<(ch-1)) == 0:
                 app.setOptionBox("Channel "+str(ch),"Off")
             if ( value & 1<<7 ) != 0:
-              app.setEntry("Test Pulse",value>>8)
+              idivider = value >>8
+              if idivider != 0:
+                divider = 0
+                for idiv in range (1,idivider+1):
+                  incr = 1
+                  if (idiv > 224): incr = 128
+                  elif (idiv > 192): incr = 64
+                  elif (idiv > 160): incr = 32
+                  elif (idiv > 128): incr = 16
+                  elif (idiv > 96): incr = 8
+                  elif (idiv > 64): incr = 4
+                  elif (idiv > 32): incr = 2
+                  divider += incr
+                rate = int(1000000/divider)
+            app.setEntry("Test Pulse",rate)
           if address == 6:
               app.setEntry("Tover",int(words[2],0)<<1)
           if address == 8:
             for ch in range(1,5):
               value = ( int(words[2],0)>>(4*(ch-1))) & 0xf
               app.setOptionBox("Channel "+str(ch),value+1,True)
+          if address == 0xC:
+            volt = int(words[2],0)*(5*(18+91))/(18*4096)
+            volt = int(10*(volt+0.05))/10
+            app.setEntry("BatLow",volt)
+          if address == 0xE:
+            volt = int(words[2],0)*(5*(18+91))/(18*4096)
+            volt = int(10*(volt+0.05))/10
+            app.setEntry("BatHigh",volt)
           if address == 0x10 or address == 0x14 or address == 0x18 or address == 0x1C:
             app.setEntry("C"+str(axi-3)+"TPre",int(words[2],0)<<1)
           if address == 0x12 or address == 0x16 or address == 0x1A or address == 0x1E:
@@ -461,7 +511,7 @@ def DUfile(button):
           iconf += (1<<6)
         elif conf == "10 sec":
           iconf += (1<<5)
-        elif conf == "External":
+        elif conf == "Internal":
           iconf += (1<<4)
         elif conf == "(not Ch 1) AND Ch 2":
           iconf += (1<<2)
@@ -475,7 +525,25 @@ def DUfile(button):
     iread=0
     iselector = 0
     if int(app.getEntry("Test Pulse")) != 0:
-      iread+=(int(app.getEntry("Test Pulse"))<<8)
+      rate = int(app.getEntry("Test Pulse"))
+      if rate < 124: rate = 124
+      divider  =  0
+      oldrate = 1000001
+      for idiv in range (1,255):
+        incr = 1
+        if (idiv > 224): incr = 128
+        elif (idiv > 192): incr = 64
+        elif (idiv > 160): incr = 32
+        elif (idiv > 128): incr = 16
+        elif (idiv > 96): incr = 8
+        elif (idiv > 64): incr = 4
+        elif (idiv > 32): incr = 2
+        divider += incr
+        newrate = int(1000000/divider)
+        if rate >= newrate and rate < oldrate :
+          iread+=(idiv<<8)
+          app.setEntry("Test Pulse",newrate)
+        oldrate = newrate
       iread +=(1<<7)
     for ch in range(1,5):
         if app.getOptionBox("Channel "+str(ch)) != "Off":
@@ -499,6 +567,22 @@ def DUfile(button):
     fp.write("1 0x004 "+hex(iread)+"\n")
     fp.write("1 0x006 "+hex(int(app.getEntry("Tover")/2))+"\n")
     fp.write("2 0x008 "+hex(iselector)+"\n")
+    voltl = app.getEntry("BatLow")
+    if voltl == None: voltl = 5
+    if voltl < 5: voltl = 5
+    volth = app.getEntry("BatHigh")
+    if volth == None: volth = 15
+    if volth > 15: volth = 15
+    if voltl > (volth - 2):
+      if voltl < 7: voltl = 5
+      if voltl > 12: voltl = 12
+      volth = voltl + 2
+    app.setEntry("BatLow",voltl)
+    app.setEntry("BatHigh",volth)
+    value = int(voltl*(18*4096)/(5*(18+91)))
+    fp.write("3 0x00C "+hex(value)+"\n")
+    value = int(volth*(18*4096)/(5*(18+91)))
+    fp.write("3 0x00E "+hex(value)+"\n")
 #Digitizer windows
     for ch in range(1,5):
       TPre = hex(int(app.getEntry("C"+str(ch)+"TPre")/2))
@@ -539,8 +623,6 @@ def DUfile(button):
         fp.write(str(12+4*ch+16*flt)+" "+hex(48+16*int(ch)+64*int(flt))+" ")
         fp.write(str(app.getEntry("C"+str(ch)+"F"+str(flt)+"M"))+" ")
         fp.write(str(app.getEntry("C"+str(ch)+"F"+str(flt)+"W"))+"\n")
-    fp.write("#Additional Parameters\n")
-    fp.write("120 0x1E0 "+hex(int(app.getEntry("ExpRate")))+"\n")
     fp.close()
   else:
     print("Oops")
@@ -601,6 +683,12 @@ app.addNamedButton("Verify","VerifyCP",VerifyRanges,row,3)
 app.addNamedButton("Exit","DigitalModule",app.hideSubWindow,row,4)
 app.addButton("Write DU Configuration file",DUfile)
 row = app.getRow()
+app.addLabel("Bat","Battery Voltages (off, on) V")
+app.addNumericEntry("BatLow",row,1)
+app.setEntry("BatLow",9.0)
+app.addNumericEntry("BatHigh",row,2)
+app.setEntry("BatHigh",12.5)
+row = row+1
 app.addLabel("DU","Detector Unit")
 app.addTickOptionBox("Configuration",["Auto reboot","Filter 1","Filter 2","Filter 3",
   "Filter 4","Fake ADC","1PPS","Enable DAQ"],row,1)
@@ -609,17 +697,14 @@ app.setOptionBox("Configuration","1PPS",True)
 app.setOptionBox("Configuration","Enable DAQ",True)
 app.addTickOptionBox("Trigger",["Channel 1","Channel 2","Channel 3","Channel 4",
   "Ch 1 AND Ch 2","(not Ch 1) AND Ch 2","Ch 1 AND Ch 2, Ch2>Ch1",
-  "Ch 3 AND Ch 4","Calibration","10 sec","External"],row,2)
+  "Ch 3 AND Ch 4","Calibration","10 sec","Internal"],row,2)
 app.setOptionBox("Trigger","Channel 1",True)
 app.setOptionBox("Trigger","Channel 2",True)
 app.setOptionBox("Trigger","10 sec",True)
 row = row+1
-app.addLabel("TP","TestPulse 0-255: 0=0Hz,1=1MHz,255=124Hz",row,0)
+app.addLabel("TP","Internal Trigger Rate [1000000, 124] Hz",row,0)
 app.addNumericEntry("Test Pulse",row,1)
 app.setEntry("Test Pulse",0)
-app.addLabel("ER","Station Rate (Simulation)",row,2)
-app.addNumericEntry("ExpRate",row,3)
-app.setEntry("ExpRate",1000)
 row = row+1
 app.addLabel("To","Trigger Overlap Time (ns)",row,0)
 app.addNumericEntry("Tover",row,1)
