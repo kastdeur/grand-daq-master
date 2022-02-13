@@ -16,6 +16,9 @@
 #include "eb.h"
 #include "scope.h"
 
+extern char *configfile;
+int ad_init_param(char *file);
+
 /* next lines copied from scope.h */
 #define FIRMWARE_VERSION(x) (10*((x>>20)&0xf)+((x>>16)&0xf))
 #define FIRMWARE_SUBVERSION(x)   (10*((x>>12)&0xf)+((x>>9)&0x7))
@@ -140,6 +143,7 @@ int eb_DUcompare(const void *a, const void *b)
   }
   return(-1);
 }
+
 /**
  void eb_getui()
  
@@ -159,10 +163,10 @@ void eb_getui()
         if(fpout != NULL) eb_close();
       }
       else if(msg->tag == DU_START){
+        ad_init_param(configfile);
         printf("EB: Starting the run\n");
         running = 1;
         i_DUbuffer = 0; // get rid of old data
-        eb_run++;
         eb_sub = 1;
       }
       shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_readb)] &= ~2;

@@ -43,6 +43,8 @@ uint16_t t3event=0;
 int32_t t2write = 0;
 uint32_t last_read_sec = 0;
 
+extern int idebug;
+
 //database
 int statlist[MAXDU]; //conversion from DU number to regular index to be used
 float posx[MAXDU],posy[MAXDU]; // stations X and Y positions, to be read at initialization!
@@ -89,18 +91,24 @@ void t3_gett2()
   struct timezone tz;
   
   gettimeofday(&tp,&tz);
-  //printf("Get T2 %d\n",t2write);
+  if(idebug) printf("Get T2 %d %ld\n",t2write,tp.tv_sec);
   while(shm_t2.Ubuf[(*shm_t2.size)*(*shm_t2.next_read)] == 1){ // loop over the input
     msg = (AMSG *)(&(shm_t2.Ubuf[(*shm_t2.size)*(*shm_t2.next_read)+1]));
     if(msg->tag == DU_T2){    // work on T2 messages only
       t2b = (T2BODY *)msg->body;
       stat = t2b->DU_id; // the indices of my array start at 0, stations at 1
       sec = T0(t2b->t0);  // obtain the seconds
+      /**if(sec>0x80000000) {
+        shm_t2.Ubuf[(*shm_t2.size)*(*shm_t2.next_read)] = 0;
+        *shm_t2.next_read = (*shm_t2.next_read) + 1;
+        if( *shm_t2.next_read >= *shm_t2.nbuf) *shm_t2.next_read = 0;
+        continue;
+      }**/
       if(sec != last_read_sec) last_read_sec = sec;
       if((sec>(t2evts[0].sec+100))&&t2write != 0) {
         printf("T3: Error in timing, large jump; LS=%d\n",stat);
       }
-      //printf("Received a T2 %d %d\n",stat,sec);
+      if(idebug)printf("Received a T2 %d %u\n",stat,sec);
       prev_nsec = 0;      // needed to check if we loop over into next second
       nsub = (msg->length-5)/2;  // number of subseconds in this T2
       for(isub=0;isub<nsub;isub++){
@@ -108,6 +116,12 @@ void t3_gett2()
         nsec = T2NSEC(t2ss)+(((t2ss->ADC)&0xf)<<2); //lower bits removed (not according to specs, we have 28 bits?)
         if(nsec < prev_nsec) sec++;
         prev_nsec = nsec;
+        if(t2write> 0){
+          if(sec == t2evts[t2write-1].sec &&
+             nsec == t2evts[t2write-1].nsec &&
+             stat == t2evts[t2write-1].stat 
+             )  continue;
+        }
         t2evts[t2write].insertsec = tp.tv_sec;
         t2evts[t2write].insertmusec = tp.tv_usec;
         t2evts[t2write].sec = sec; // save data into array
@@ -141,16 +155,30 @@ void t3_gett2()
     if( *shm_t2.next_read >= *shm_t2.nbuf) *shm_t2.next_read = 0;
   }
   if(gotdata == 0) return;
-  for(ind=0;ind<t2write;ind++){ //clear old data
-    if((tp.tv_sec-t2evts[ind].insertsec)>MAXSEC) t2evts[ind].insertsec = 0;
-    if(t2evts[ind].used == 1) t2evts[ind].insertsec = 0;
+  if(idebug)printf("T3: T2write = %d\n",t2write);
+  for(ind=0;ind<t2write;ind++){ //clear old or used data
+    if(((tp.tv_sec-t2evts[ind].insertsec)>MAXSEC) ||
+       (t2evts[ind].used == 1)){
+      t2evts[ind].insertsec = 0;
+      t2evts[ind].sec = 0;
+    }
+    if((t2evts[ind].sec>t2evts[t2write-1].sec) &&(t2evts[ind].sec-t2evts[t2write-1].sec)>MAXSEC){
+      if(idebug) printf("T3: Cleanup1 %u %u %d\n",t2evts[ind].sec,t2evts[t2write-1].sec,ind);
+      t2evts[ind].insertsec = 0; //get rid of GPS issues
+      t2evts[ind].sec = 0; //get rid of GPS issues
+    }
   }
   qsort(t2evts,t2write,sizeof(T2evts),t3_compare);
   // remove old data
   ind = t2write-1;
-  sec = t2evts[0].insertsec-MAXSEC;
-  while(sec >t2evts[ind].insertsec) ind--; //real cleanup!
-  t2write = ind+1;
+  sec = t2evts[0].insertsec-MAXSEC;//t2evts[0] == newest!
+  if(idebug) printf("Timetest %d %d %d\n",t2evts[0].insertsec,t2evts[ind].insertsec,ind);
+  while(sec > t2evts[ind].insertsec &&ind>0) {
+    ind--; //real cleanup!
+  }
+  //printf(" %d\n",ind);
+  if(sec >t2evts[1].insertsec ) t2write = ind+1;
+  else t2write = ind;
 }
 
 
@@ -188,7 +216,7 @@ void t3_maket3()
   int evsize,evnear;
   int eventindex[MAXDU];
   
-  
+  if(idebug) printf("Entering make t3 %d\n",t2write);
   for(ind=(t2write-1);ind>0;ind--){
     // 1st ensure that event is old enough, not likely for new data to appear
     insertdif = t2evts[0].sec-t2evts[ind].sec;
@@ -206,7 +234,7 @@ void t3_maket3()
     else isten = 0;
     if(t2evts[ind].trigflag&0x8) israndom = 1;
     else israndom = 0;
-    //if(isten == 1) printf("A 10 sec trigger %d\n",t2evts[ind].sec);
+    if(isten == 1) printf("A 10 sec trigger %d\n",t2evts[ind].sec);
     for(i=ind-1;i>=0;i--){
       if(t2evts[i].sec-t2evts[ind].sec > 1) tdif = TCOINC+1;
       else if(t2evts[i].sec-t2evts[ind].sec == 1){
@@ -219,7 +247,7 @@ void t3_maket3()
           eventindex[evsize] = i;
           evsize++;
           if(evsize>=MAXDU) {
-            printf("Too many DUs in an event, loosing data");
+            printf("Too many DUs in an event, loosing data %d %d %d (%d %d) %d %d\n",isten,evsize,MAXDU,tdif,ctimes[t2evts[i].unit][t2evts[ind].unit],i,ind);
             evsize = MAXDU-1;
           }
           if((ctimes[t2evts[i].unit][t2evts[ind].unit]<=TNEAR)
@@ -229,7 +257,7 @@ void t3_maket3()
     }
     // trigger condition is easy
     if((evsize>=NTRIG &&evnear>=NNEAR) || isten == 1 || israndom == 1) {
-      //if(isten == 1) printf("Found a T10 with %d stations T=%u\n",evsize,t2evts[ind].sec);
+      if(isten == 1) printf("Found a T10 with %d stations T=%u\n",evsize,t2evts[ind].sec);
       //start creating the list to send
       t3list[0] = 3; // length before adding a station
       if(isten == 1) t3list[1] = DU_GET_MINBIAS_EVENT;

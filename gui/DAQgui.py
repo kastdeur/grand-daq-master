@@ -167,6 +167,10 @@ def VerifyRanges(tp):
     else:
       value = vmin
     app.setEntry("C"+str(ch)+"TrigQmax",int(value))
+    GaindB = app.getEntry("C"+str(ch)+"Gain")
+    if GaindB < -14: GaindB = -14
+    if GaindB > 23.5: GaindB = 23.5
+    app.setEntry("C"+str(ch)+"Gain",GaindB)
 
 
 def send_daq(msgid):
@@ -222,8 +226,6 @@ def confbut(button):
       elif words[0] == "EBMODE":
         if words[1] == "0":
           app.setOptionBox("Run Mode","Physics",True)
-        elif words[1] == "1":
-          app.setOptionBox("Run Mode","Calibration",True)
         else:
           app.setOptionBox("Run Mode","Test",True)
       elif words[0] == "EBSIZE":
@@ -255,8 +257,6 @@ def confbut(button):
     fp.write("EBRUN "+str(int(app.getEntry("Next Run")))+"\n")
     if(app.getOptionBox("Run Mode") == "Physics"):
       fp.write("EBMODE 0\n")
-    elif(app.getOptionBox("Run Mode") == "Calibration"):
-      fp.write("EBMODE 1\n")
     else:
       fp.write("EBMODE 2\n")
     fp.write("EBSIZE "+str(int(app.getEntry("File Size")))+"\n")
@@ -296,6 +296,7 @@ def confbut(button):
 def DUfile(button):
   if button == "Read DU Configuration file":
     print("Reading")
+    chval = 0
     fname = app.getEntry("DUconffile")
     fp=open(fname,"r")
     for line in fp:
@@ -361,9 +362,9 @@ def DUfile(button):
             else:
               app.setOptionBox("Trigger","10 sec",True)
             if (value & 1<<6) == 0:
-              app.setOptionBox("Trigger","Calibration",False)
+              app.setOptionBox("Trigger","20 Hz",False)
             else:
-              app.setOptionBox("Trigger","Calibration",True)
+              app.setOptionBox("Trigger","20 Hz",True)
             if (value & 1<<7) == 0:
               app.setOptionBox("Trigger","Ch 1 AND Ch 2",False)
             else:
@@ -387,6 +388,7 @@ def DUfile(button):
           if address == 4:
             value =int(words[2],0)
             rate = 0
+            chval  = value
             for ch in range(1,5):
               if (value & 1<<(ch-1)) == 0:
                 app.setOptionBox("Channel "+str(ch),"Off")
@@ -412,12 +414,14 @@ def DUfile(button):
             for ch in range(1,5):
               value = ( int(words[2],0)>>(4*(ch-1))) & 0xf
               app.setOptionBox("Channel "+str(ch),value+1,True)
+              if((chval != 0) and ((chval & 1<<(ch-1)) == 0)):
+                app.setOptionBox("Channel "+str(ch),"Off")
           if address == 0xC:
-            volt = int(words[2],0)*(5*(18+91))/(18*4096)
+            volt = int(words[2],0)*(2.5*(18+91))/(18*4096)
             volt = int(10*(volt+0.05))/10
             app.setEntry("BatLow",volt)
           if address == 0xE:
-            volt = int(words[2],0)*(5*(18+91))/(18*4096)
+            volt = int(words[2],0)*(2.5*(18+91))/(18*4096)
             volt = int(10*(volt+0.05))/10
             app.setEntry("BatHigh",volt)
           if address == 0x10 or address == 0x14 or address == 0x18 or address == 0x1C:
@@ -425,7 +429,10 @@ def DUfile(button):
           if address == 0x12 or address == 0x16 or address == 0x1A or address == 0x1E:
             app.setEntry("C"+str(axi-3)+"TPost",int(words[2],0)<<1)
           if address == 0x20 or address == 0x2C or address == 0x38 or address == 0x44:
-            app.setEntry("C"+str((int)((axi-5)/3))+"Gain",int(words[2],0))
+            GainADC  = int(words[2],0)
+            GaindB = (GainADC*(37.5*2.5)/4096)-14
+            GaindB = int(100*(GaindB+0.005))/100
+            app.setEntry("C"+str((int)((axi-5)/3))+"Gain",GaindB)
           if address == 0x22 or address == 0x2E or address == 0x3A or address == 0x46:
             app.setEntry("C"+str((int)((axi-5)/3))+"Int",int(words[2],0)>>8)
           if address == 0x24 or address == 0x30 or address == 0x3C or address == 0x48:
@@ -507,7 +514,7 @@ def DUfile(button):
           iconf += (1<<8)
         elif conf == "Ch1 AND Ch2":
           iconf += (1<<7)
-        elif conf == "Calibration":
+        elif conf == "20 Hz":
           iconf += (1<<6)
         elif conf == "10 sec":
           iconf += (1<<5)
@@ -579,9 +586,9 @@ def DUfile(button):
       volth = voltl + 2
     app.setEntry("BatLow",voltl)
     app.setEntry("BatHigh",volth)
-    value = int(voltl*(18*4096)/(5*(18+91)))
+    value = int(voltl*(18*4096)/(2.5*(18+91)))
     fp.write("3 0x00C "+hex(value)+"\n")
-    value = int(volth*(18*4096)/(5*(18+91)))
+    value = int(volth*(18*4096)/(2.5*(18+91)))
     fp.write("3 0x00E "+hex(value)+"\n")
 #Digitizer windows
     for ch in range(1,5):
@@ -591,7 +598,11 @@ def DUfile(button):
       fp.write(str(3+ch)+" "+hex(int(14+4*int(ch)))+" "+TPost+"\n")
 # Channel Property
     for ch in range(1,5):
-      Gain = hex(int(app.getEntry("C"+str(ch)+"Gain")))
+      GaindB = app.getEntry("C"+str(ch)+"Gain")
+      if GaindB < -14: GaindB = -14
+      if GaindB > 23.5: GaindB = 23.5
+      app.setEntry("C"+str(ch)+"Gain",GaindB)
+      Gain = hex(int((4096*(GaindB+14)/(37.5*2.5))+0.5))
       ITim = hex(int(app.getEntry("C"+str(ch)+"Int"))<<8)
       BMin = hex(int(app.getEntry("C"+str(ch)+"BMin")))
       BMax = hex(int(app.getEntry("C"+str(ch)+"BMax")))
@@ -653,7 +664,7 @@ app.setEntry("conffile","/Users/timmer/Work/GRAND/grand-daq-master/conf/Adaq.con
 app.setEntryWidth("conffile",len(app.getEntry("conffile")))
 app.addButton("Write DAQ Configuration file",confbut)
 app.addLabelNumericEntry("Next Run")
-app.addLabelOptionBox("Run Mode",["- Mode -","Physics","Calibration","Test"])
+app.addLabelOptionBox("Run Mode",["- Mode -","Physics","Test"])
 app.setOptionBox("Run Mode","Physics",True)
 app.addLabelNumericEntry("File Size")
 app.addLabelNumericEntry("Random")
@@ -697,7 +708,7 @@ app.setOptionBox("Configuration","1PPS",True)
 app.setOptionBox("Configuration","Enable DAQ",True)
 app.addTickOptionBox("Trigger",["Channel 1","Channel 2","Channel 3","Channel 4",
   "Ch 1 AND Ch 2","(not Ch 1) AND Ch 2","Ch 1 AND Ch 2, Ch2>Ch1",
-  "Ch 3 AND Ch 4","Calibration","10 sec","Internal"],row,2)
+  "Ch 3 AND Ch 4","20 Hz","10 sec","Internal"],row,2)
 app.setOptionBox("Trigger","Channel 1",True)
 app.setOptionBox("Trigger","Channel 2",True)
 app.setOptionBox("Trigger","10 sec",True)
@@ -718,7 +729,7 @@ filt1=17
 app.addLabel("Inp","Input",row+row_Input,0)
 app.addLabel("Tpre","Pre Trigger (ns)",row+row_Pre,0)
 app.addLabel("Tpost","Post Trigger (ns)",row+row_Post,0)
-app.addLabel("Gain","Additional Gain",row+row_Gain,0)
+app.addLabel("Gain","Additional Gain [-14, 23.5] (dB)",row+row_Gain,0)
 app.addLabel("Tint","Integration time",row+row_Int,0)
 app.addLabel("Bmin","Min. Baseline (ADC)",row+row_Min,0)
 app.addLabel("Bmax","Max. Baseline (ADC)",row+row_Max,0)

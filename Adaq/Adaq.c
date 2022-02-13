@@ -24,6 +24,7 @@ Altering the code without explicit consent of the author is forbidden
 
 pid_t pid_du,pid_t3,pid_eb,pid_ui,pid_gui;
 uint8_t stop_process=0;
+int idebug = 0;
 
 void du_main();
 void t3_main();
@@ -32,6 +33,9 @@ void ui_main();
 void gui_main();
 
 void remove_shared_memory();
+
+char *configfile;
+
 
 /**
 void r clean_stop (int signum)
@@ -55,6 +59,7 @@ creates a new instance of the interface to the detector units
 pid_t ad_spawn_du()
 {
   pid_t i;
+  printf("Spawning new DU\n");
   if((i = fork()) == 0) du_main();
   return(i);
 }
@@ -78,6 +83,7 @@ creates a new instance of the event builder
 pid_t ad_spawn_eb()
 {
   pid_t i;
+  printf("Spawning new EB\n");
   if((i = fork()) == 0) eb_main();
   return(i);
 }
@@ -234,7 +240,6 @@ void ad_check_processes()
  */
 int main(int argc,char **argv)
 {
-    char *configfile;
     
     signal(SIGHUP,clean_stop);
     signal(SIGINT,clean_stop);
@@ -242,7 +247,8 @@ int main(int argc,char **argv)
     signal(SIGABRT,clean_stop);
     signal(SIGKILL,clean_stop);
     
-    if(argc>1) configfile = argv[1];
+  if(argc>1) sscanf(argv[1],"%d",&idebug);
+    if(argc>2) configfile = argv[2];
     else configfile = DEFAULT_CONFIGFILE;
     ad_initialize(configfile);
     stop_process = 0;

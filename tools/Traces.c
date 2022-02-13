@@ -126,7 +126,7 @@ void print_du(uint16_t *du)
          *(float *)&du[EVT_PPS_OFFSET],du[EVT_LEAP],du[EVT_GPS_STATFLAG],
          du[EVT_GPS_CRITICAL],du[EVT_GPS_WARNING]);
   printf("\t GPS: %02d/%02d/%04d %02d:%02d:%02d\n",
-         du[EVT_DAYMONTH]&0xff,(du[EVT_DAYMONTH]>>8)&0xff,du[EVT_YEAR],
+         (du[EVT_DAYMONTH]>>8)&0xff,(du[EVT_DAYMONTH])&0xff,du[EVT_YEAR],
          du[EVT_MINHOUR]&0xff,(du[EVT_MINHOUR]>>8)&0xff,du[EVT_STATSEC]&0xff);
   printf("\t GPS: Long = %g Lat = %g Alt = %g Chip Temp=%g\n",
          57.3*(*(double *)&du[EVT_LONGITUDE]),57.3*(*(double *)&du[EVT_LATITUDE]),

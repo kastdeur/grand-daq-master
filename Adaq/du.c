@@ -18,6 +18,8 @@
 #include "Adaq.h"
 #include "amsg.h"
 
+extern int idebug;
+
 #define SAMP_FREQ 500.0
 int getNotchFilterCoeffs(double nu_s, double r, int xtraPipe, int *a, int *b, int *aLen, int *bLen);
 
@@ -76,7 +78,7 @@ void du_interpret(uint16_t *buffer)
         //printf("DU: Receive monitor info Stat=%d Sec=%d rate=%d\n",buffer[i+2]&0xff,*(int *)&buffer[i+3],buffer[i+5]);
         //  break;
       case DU_EVENT:
-        //printf("Received an event\n");
+        if(idebug) printf("Received an event\n");
       case DU_NO_EVENT:
         if(msg->length<EVSIZE){
           // wait until the shared memory is not full
@@ -182,11 +184,14 @@ void du_connect()
   int iret;
   struct timeval tnow;
   struct timezone tzone;
-  
+  ssize_t recvRet;
+  socklen_t RDalength;
+  uint16_t buffer[2];
+
   gettimeofday(&tnow,&tzone);
   for(i=0;i<tot_du;i++){ // loop over all stations
     if(DUinfo[i].DUsock >= 0) continue; // nothing needs to be done
-    printf("Trying to connect to socket %d\n",DUinfo[i].DUport);
+    printf("Trying to connect to socket %d station %d\n",DUinfo[i].DUport,DUinfo[i].DUid);
     //1. Create the socket
     //DUinfo[i].DUsock =  socket ( PF_INET, SOCK_DGRAM, 0 );
     DUinfo[i].DUsock =  socket ( PF_INET, SOCK_STREAM, 0 );
@@ -213,7 +218,12 @@ void du_connect()
       DUinfo[i].LSTconnect = 0;
       continue;
     }
-    //4. continue the run when needed
+    //4. flush the socket
+    RDalength = DUinfo[i].DUalength;
+    while((recvRet = recvfrom(DUinfo[i].DUsock,buffer,2,0,
+                              (struct sockaddr*)&DUinfo[i].DUaddress,&RDalength))==2) usleep(10);
+
+    //5. continue the run when needed
     if(running == 1) du_init_and_run(i);
   }
 }
@@ -462,7 +472,7 @@ void du_write()
       evtinfo->event_nr = T3info->event_nr; //get event number from T3
       n_t3_du = (msg->length-3)/T3STATIONSIZE; // msg == length+tag+eventnr+T3stations
       for(it3=0;it3<n_t3_du;it3++){ // loop over all stations in T3 list
-        //printf("DU: Need to request a T3 %d %d\n",T3info->t3station[it3].DU_id,T3info->t3station[it3].sec);
+        if(idebug) printf("DU: Need to request a T3 %d %d\n",T3info->t3station[it3].DU_id,T3info->t3station[it3].sec);
         for(il=0;il<tot_du;il++){ //loop over all DU in the DAQ
           if(T3info->t3station[it3].DU_id== 0 || T3info->t3station[it3].DU_id == DUinfo[il].DUid){
             // request event from station
@@ -487,7 +497,7 @@ void du_write()
   while((shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)])  !=  0){ // loop over the UI input
     if(((shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)]) &1) ==  1){ // loop over the UI input
       msg = (AMSG *)(&(shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)+1]));
-      printf("DU: sending commandline command  %d with length %d\n",msg->tag,msg->length);
+      if(idebug) printf("DU: sending commandline command  %d with length %d\n",msg->tag,msg->length);
       if(msg->tag == DU_START) running = 1;
       if(msg->tag == DU_STOP) running = 0;
       if(msg->tag == DU_STOP || msg->tag == DU_START){
@@ -496,7 +506,7 @@ void du_write()
         du_cmd[2] = msg->tag;
         du_cmd[4] = GRND1;
         du_cmd[5] = GRND2;
-        printf("DU: Changing run %d\n",msg->tag);
+        if(idebug) printf("DU: Changing run %d\n",msg->tag);
         for(il=0;il<tot_du;il++){
           du_cmd[3] = DUinfo[il].DUid;
           du_send(du_cmd,il);

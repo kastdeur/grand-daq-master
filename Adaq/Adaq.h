@@ -12,7 +12,7 @@ Altering the code without explicit consent of the author is forbidden
 #include <arpa/inet.h>
 #include "ad_shm.h"
 
-#define MAXDU 5 //max number of Detector Units
+#define MAXDU 100 //max number of Detector Units
 #define ERROR -1
 #define NORMAL 1
 #define DEFAULT_CONFIGFILE "conf/Adaq.conf"
