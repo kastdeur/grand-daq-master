@@ -9,8 +9,13 @@ Version 1.0
 This file handles the buffers needed for the DAQ of the DU_NL Software.
 The following buffers are present:
 
+*bf : the socket output buffer
+t3_buffer: ringbuffer holding at most MAXT3 events to be sent to DAQ
+        t3_wait: index of location of next event written int buffer
+        t3_send: index of location of next event sent to DAQ
+
 External buffers:
-timestampbuf: holds the events read-out from the digitizer
+eventbuf: holds the events read-out from the digitizer
         evread: index of location of next event read-out
         t2prev: index of location after previous T2 stamp sent
 
@@ -37,7 +42,8 @@ print_message(AMSG *msg) prints the complete content of a message (hex and dec)!
 extern shm_struct shm_ev;         //!< shared memory containing all event info, including read/write pointers
 extern shm_struct shm_ts;
 extern shm_struct shm_gps;        //!< shared memory containing all GPS info, including read/write pointers
-
+//extern EV_DATA eventbuf[BUFSIZE];
+//extern EV_DATA *eventbuf;       //!< buffer that holds all triggered events (points to shared memory)
 extern TS_DATA *timestampbuf;
 extern int evread;              //!< pointer to the last event read
 
@@ -87,6 +93,7 @@ int buffer_add_t2(unsigned short *bf,int bfsize,short id) {
     bf[0] = 0;
     return(0);                                 // no T2 to be sent
   }
+  //printf("Buffer add T2 %d %d\n",next_read,next_write);
   bf[1] = DU_T2;                                                  // tag (message header)
   bf[2] = id;
   *s = (unsigned int)timestampbuf[next_read].ts_seconds;
@@ -121,7 +128,15 @@ int buffer_add_t2(unsigned short *bf,int bfsize,short id) {
  * \param id        local station identifier
  * \retval n number of events copied
  * - If all requested T3 events are sent, do nothing
- * - Add event
+ * - Loop over all waiting events
+ *   - When the nanoseconds are not yet precisely calculated, perform this calculation
+ * - Skip events older than 5 seconds for which the time has not been calculated properly
+ * - Calculate the size of the next event and check if it fits in the output message
+ * - Fill the AERA standard event header
+ * - Add the hardware supplied event header
+ * - Add the GPS quant. corrections belonging to the event
+ * - Add the hardware settings from the PPS message
+ * - Add the ADC values
  * - Update the pointer in the T3 ringbuffer
  * - Add 1 to the number of T3 events sent
  * \author C. Timmermans
@@ -139,14 +154,13 @@ int buffer_add_t3(unsigned short *bf,int bfsize,short id) {
   bf[0] = 0;
   msg_start[AMSG_OFFSET_TAG] = DU_EVENT;
   if(next_read == next_write)  return(0); // nothing needed
-  if(t3buf[EVT_LENGTH]<bfsize) return(0); //nothing can be done
   memcpy(&msg_start[AMSG_OFFSET_BODY],&t3buf[next_read*t3buf[EVT_LENGTH]],t3buf[EVT_LENGTH]*sizeof(uint16_t));
   //printf("Copying %d words\n",t3buf[EVT_LENGTH]);
   bf[0] = t3buf[EVT_LENGTH]+2;
   next_read++;
   if(next_read>=MAXT3) next_read = 0;
   *(shm_ev.next_read) = next_read;
-  return(1);
+  return(0);
 }
 
 /*!

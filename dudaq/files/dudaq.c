@@ -23,7 +23,7 @@
 #include "amsg.h"
 #include "scope.h"
 #include "ad_shm.h"
-#include "du_monitor.h"
+// #include "du_monitor.h"
 
 int buffer_add_t2(unsigned short *bf,int bfsize,short id);
 int buffer_add_t3(unsigned short *bf,int bfsize,short id);
@@ -661,13 +661,13 @@ void du_scope_main()
   }
 }
 
-void du_monitor_main()
-{
-  monitor_open();
-  while(1){
-    monitor_read();
-  }
-}
+// void du_monitor_main()
+// {
+//   monitor_open();
+//   while(1){
+//     monitor_read();
+//   }
+// }
 
 /*!
  \fn void du_get_station_id()
@@ -846,21 +846,21 @@ int main(int argc, char **argv)
         printf("Cannot create CMD shared memory !!\n");
         exit(-1);
     }
-    if(ad_shm_create(&shm_mon,MONBUF,N_MON) <0){
-        printf("Cannot create Monitor shared memory !!\n");
-        exit(-1);
-    }
+    // if(ad_shm_create(&shm_mon,MONBUF,N_MON) <0){
+    //     printf("Cannot create Monitor shared memory !!\n");
+    //     exit(-1);
+    // }
     if((pid_scope = fork()) == 0) du_scope_main();
-    if((pid_monitor = fork()) == 0) du_monitor_main(argc,argv);
+    // if((pid_monitor = fork()) == 0) du_monitor_main(argc,argv);
     if((pid_socket = fork()) == 0) du_socket_main(argc,argv);
     while(stop_process == 0){
       pid = waitpid (WAIT_ANY, &status, 0);
       if(pid == pid_scope && stop_process == 0) {
 	if((pid_scope = fork()) == 0) du_scope_main();
       }
-      if(pid == pid_monitor && stop_process == 0) {
-	if((pid_monitor = fork()) == 0) du_monitor_main();
-      }
+ //      if(pid == pid_monitor && stop_process == 0) {
+	// if((pid_monitor = fork()) == 0) du_monitor_main();
+ //      }
       if(pid == pid_socket && stop_process == 0) {
 	if((pid_socket = fork()) == 0) du_socket_main(argc,argv);
       }

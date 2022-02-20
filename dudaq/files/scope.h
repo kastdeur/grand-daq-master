@@ -246,6 +246,7 @@ typedef struct
 // the routines
 
 void scope_raw_write(uint32_t reg_addr, uint32_t value);
+uint32_t scope_raw_read(uint32_t reg_addr);
 void scope_flush();
 int scope_open();
 void scope_close();
@@ -265,3 +266,4 @@ int scope_no_run_read();
 int scope_run_read();
 void scope_event_to_shm(uint16_t evnr,uint16_t trflag,uint16_t sec,uint32_t ssec);
 //
+

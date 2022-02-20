@@ -29,7 +29,7 @@
 #include<errno.h>
 
 #include "ad_shm.h"
-#include "du_monitor.h"
+// #include "du_monitor.h"
 #include "scope.h"
 
 
@@ -83,7 +83,10 @@ void scope_raw_write(uint32_t reg_addr, uint32_t value)
   *((unsigned int *)(axi_ptr+page_offset+reg_addr)) = value;
 }
 
-#define scope_raw_read(reg_addr) *((unsigned int *)(axi_ptr+page_offset+reg_addr))
+uint32_t scope_raw_read(uint32_t reg_addr) 
+{
+  return *((unsigned int *)(axi_ptr+page_offset+reg_addr));
+}
 
 void scope_flush()
 {
@@ -385,13 +388,13 @@ int scope_read_event(int32_t ioff)
     evtbuf[offset+EVT_TRIGGERPOS] = shadowlist[Reg_Time1_Pre>>1]+shadowlist[Reg_Time_Common>>1];
     evtbuf[offset+EVT_ID] = evtnr++;
     evtbuf[offset+EVT_HARDWARE] = station_id;
-    evtbuf[offset+EVT_ATM_TEMP] = shm_mon.Ubuf[MON_TEMP];
-    evtbuf[offset+EVT_ATM_PRES] = shm_mon.Ubuf[MON_PRESSURE];
-    evtbuf[offset+EVT_ATM_HUM] = shm_mon.Ubuf[MON_HUMIDITY];
-    evtbuf[offset+EVT_ACCEL_X] = shm_mon.Ubuf[MON_AccX];
-    evtbuf[offset+EVT_ACCEL_Y] = shm_mon.Ubuf[MON_AccY];
-    evtbuf[offset+EVT_ACCEL_Z] = shm_mon.Ubuf[MON_AccZ];
-    evtbuf[offset+EVT_BATTERY] = shm_mon.Ubuf[MON_BATTERY];
+    // evtbuf[offset+EVT_ATM_TEMP] = shm_mon.Ubuf[MON_TEMP];
+    // evtbuf[offset+EVT_ATM_PRES] = shm_mon.Ubuf[MON_PRESSURE];
+    // evtbuf[offset+EVT_ATM_HUM] = shm_mon.Ubuf[MON_HUMIDITY];
+    // evtbuf[offset+EVT_ACCEL_X] = shm_mon.Ubuf[MON_AccX];
+    // evtbuf[offset+EVT_ACCEL_Y] = shm_mon.Ubuf[MON_AccY];
+    // evtbuf[offset+EVT_ACCEL_Z] = shm_mon.Ubuf[MON_AccZ];
+    // evtbuf[offset+EVT_BATTERY] = shm_mon.Ubuf[MON_BATTERY];
     timestampbuf[next_write].ts_seconds = *sec;
     timestampbuf[next_write].ts_nanoseconds = *nanosec;
     timestampbuf[next_write].event_nr = evtbuf[offset+EVT_ID];
