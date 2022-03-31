@@ -16,7 +16,7 @@
 #include "amsg.h"
 
 #define MAXRATE 1000
-#define MAXSEC 12 // has to be above 10 to avoid missing 10sec triggers!
+#define MAXSEC 22 // has to be above 10 to avoid missing 10sec triggers!
 #define NEVT (MAXSEC*MAXDU*MAXRATE)
 #define GIGA    1000000000
 #define T3DELAY GIGA
