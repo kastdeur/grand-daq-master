@@ -16,7 +16,7 @@
 #include "amsg.h"
 
 #define MAXRATE 1000
-#define MAXSEC 22 // has to be above 10 to avoid missing 10sec triggers!
+#define MAXSEC 12 // has to be above 10 to avoid missing 10sec triggers!
 #define NEVT (MAXSEC*MAXDU*MAXRATE)
 #define GIGA    1000000000
 #define T3DELAY GIGA
@@ -215,11 +215,15 @@ void t3_maket3()
   T3STATION *t3stat;
   int evsize,evnear;
   int eventindex[MAXDU];
+  struct timeval tp;
+  struct timezone tz;
   
+  gettimeofday(&tp,&tz);
+
   if(idebug) printf("Entering make t3 %d\n",t2write);
-  for(ind=(t2write-1);ind>0;ind--){
+  for(ind=(t2write-1);ind>=0;ind--){
     // 1st ensure that event is old enough, not likely for new data to appear
-    insertdif = t2evts[0].sec-t2evts[ind].sec;
+    insertdif = tp.tv_sec-t2evts[ind].sec;
     if(insertdif < 2 ){ //2 or more is clearly ok!
       insertdif = GIGA*(insertdif) + (t2evts[0].nsec-t2evts[ind].nsec);
     } else insertdif = T3DELAY+1;
