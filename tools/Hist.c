@@ -177,6 +177,8 @@ void print_du(uint16_t *du)
       sprintf(fname,"H%dT%d",du[EVT_ID],ic);
       sprintf(hname,"H%dT%d",du[EVT_ID],ic);
       TH1F *Hist = new TH1F(fname,hname,du[EVT_TOT_SAMPLES+ic],0.,2*du[EVT_TOT_SAMPLES+ic]);
+
+      // Trace
       for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
         value =(int16_t)du[ioff++];
         Hist->SetBinContent(i+1,value);
@@ -184,12 +186,36 @@ void print_du(uint16_t *du)
       }
       Hist->Write();
       Hist->Delete();
+
+      // Fourier
       mag_and_phase(ttrace,fmag,fphase);
-      sprintf(fname,"H%dF%d",du[EVT_ID],ic);
-      sprintf(hname,"H%dF%d",du[EVT_ID],ic);
+
+      // Magnitude
+      sprintf(fname,"H%dFM%d",du[EVT_ID],ic);
+      sprintf(hname,"H%dFM%d",du[EVT_ID],ic);
       Hist = new TH1F(fname,hname,fftlen/2,0.,250);
       for(i=0;i<fftlen/2;i++){
         Hist->SetBinContent(i+1,fmag[i]);
+      }
+      Hist->Write();
+      Hist->Delete();
+
+      // Phase
+      sprintf(fname,"H%dFP%d",du[EVT_ID],ic);
+      sprintf(hname,"H%dFP%d",du[EVT_ID],ic);
+      Hist = new TH1F(fname,hname,fftlen/2,0.,250);
+      for(i=0;i<fftlen/2;i++){
+        Hist->SetBinContent(i+1,fphase[i]);
+      }
+      Hist->Write();
+      Hist->Delete();
+
+      // Magnitude * Phase
+      sprintf(fname,"H%dFMP%d",du[EVT_ID],ic);
+      sprintf(hname,"H%dFMP%d",du[EVT_ID],ic);
+      Hist = new TH1F(fname,hname,fftlen/2,0.,250);
+      for(i=0;i<fftlen/2;i++){
+        Hist->SetBinContent(i+1,fphase[i]*fmag[i]);
       }
       Hist->Write();
       Hist->Delete();
@@ -231,7 +257,6 @@ int main(int argc, char **argv)
 {
   FILE *fp;
   int i,ich,ib;
-  char fname[100],hname[100];
   std::string fout {"Hist.root"};
 
   if ( argc > 2 )
