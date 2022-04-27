@@ -232,8 +232,15 @@ int main(int argc, char **argv)
   FILE *fp;
   int i,ich,ib;
   char fname[100],hname[100];
-  
-  TFile g("Hist.root","RECREATE");
+  std::string fout {"Hist.root"};
+
+  if ( argc > 2 )
+  {
+	  fout = argv[2];
+  }
+
+  TFile g(fout.c_str(), "RECREATE");
+
   fp = fopen(argv[1],"r");
   if(fp == NULL) printf("Error opening  !!%s!!\n",argv[1]);
   
