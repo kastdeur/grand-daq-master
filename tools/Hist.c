@@ -115,6 +115,11 @@ void print_du(uint16_t *du)
   int i,ic;
   int ioff;
   short value;
+
+  const int16_t max_trace_value = 8193;
+  const char invalid_trace_suffix[] = "-Invalid";
+  bool invalid_trace = 0;
+
   char hname[100],fname[100];
   
   printf("\t T3 ID = %u\n",du[EVT_ID]);
@@ -179,10 +184,32 @@ void print_du(uint16_t *du)
       TH1F *Hist = new TH1F(fname,hname,du[EVT_TOT_SAMPLES+ic],0.,2*du[EVT_TOT_SAMPLES+ic]);
 
       // Trace
+      invalid_trace = 0;
       for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
         value =(int16_t)du[ioff++];
+
+        if ( value > max_trace_value  || value < -max_trace_value){
+            invalid_trace = 1;
+        }
+
         Hist->SetBinContent(i+1,value);
         ttrace[i] = value;
+      }
+
+      if ( invalid_trace != 0 ){
+            printf("!! Invalid Trace: %s \n", hname);
+
+            if ( 1 ){ // Append a suffix to filename
+                char tmp_fname[100];
+                strcpy(tmp_fname, fname);
+
+                sprintf(fname,"%s%s", tmp_fname, invalid_trace_suffix);
+                Hist->SetName(fname);
+            }
+            else{ // Throw away this trace and continue with next channel
+                Hist->Delete();
+                continue;
+            }
       }
       Hist->Write();
       Hist->Delete();
@@ -219,7 +246,6 @@ void print_du(uint16_t *du)
       }
       Hist->Write();
       Hist->Delete();
-
     }
   }
 }
