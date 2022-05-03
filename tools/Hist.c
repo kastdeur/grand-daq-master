@@ -32,14 +32,34 @@ int fftlen = 0;
  * @param[in] ttrace_size Size of ttrace
  * @return exit-status: 0 means OK
  */
-int validate_trace( float *ttrace, unsigned int ttrace_size ){
-  const int16_t max_trace_value = 8193;
+int validate_trace(
+        const float *ttrace,
+        const uint16_t ttrace_size,
+        const int16_t max_trace_value = 8193,
+        const uint16_t max_values_wo_zero_crossing = 100
+){
+  uint16_t zero_crossing_counter = 0;
 
   for( int i=0; i < ttrace_size; i++ )
   {
+        // Too high ADC values
         if ( ttrace[i] > max_trace_value  || ttrace[i] < -max_trace_value)
         {
             return 1;
+        }
+
+        // Zero Crossings
+        if ( i > 1 ) {
+            if ( signbit(ttrace[i-1]) != signbit(ttrace[i]) ){
+                zero_crossing_counter = 0;
+            } else {
+                zero_crossing_counter++;
+            }
+
+            if ( zero_crossing_counter >= max_values_wo_zero_crossing )
+            {
+                return 2;
+            }
         }
     }
 
@@ -213,7 +233,7 @@ void print_du(uint16_t *du)
       invalid_trace = validate_trace(ttrace, du[EVT_TOT_SAMPLES+ic]);
 
       if ( invalid_trace != 0 ){
-            printf("!! Invalid Trace: %s \n", hname);
+            printf("!! Invalid Trace (%d): %s \n", invalid_trace, hname);
 
             if ( 1 ){ // Append a suffix to filename
                 char tmp_fname[100];
