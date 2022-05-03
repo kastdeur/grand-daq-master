@@ -26,6 +26,26 @@ unsigned short *event=NULL;
 float *ttrace,*fmag,*fphase;
 int fftlen = 0;
 
+/**
+ * Validate a trace
+ * @param[in] ttrace The trace to validate
+ * @param[in] ttrace_size Size of ttrace
+ * @return exit-status: 0 means OK
+ */
+int validate_trace( float *ttrace, unsigned int ttrace_size ){
+  const int16_t max_trace_value = 8193;
+
+  for( int i=0; i < ttrace_size; i++ )
+  {
+        if ( ttrace[i] > max_trace_value  || ttrace[i] < -max_trace_value)
+        {
+            return 1;
+        }
+    }
+
+  return 0;
+}
+
 int grand_read_file_header(FILE *fp)
 {
   int i,return_code;
@@ -116,7 +136,6 @@ void print_du(uint16_t *du)
   int ioff;
   short value;
 
-  const int16_t max_trace_value = 8193;
   const char invalid_trace_suffix[] = "-Invalid";
   bool invalid_trace = 0;
 
@@ -184,17 +203,14 @@ void print_du(uint16_t *du)
       TH1F *Hist = new TH1F(fname,hname,du[EVT_TOT_SAMPLES+ic],0.,2*du[EVT_TOT_SAMPLES+ic]);
 
       // Trace
-      invalid_trace = 0;
       for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
         value =(int16_t)du[ioff++];
-
-        if ( value > max_trace_value  || value < -max_trace_value){
-            invalid_trace = 1;
-        }
 
         Hist->SetBinContent(i+1,value);
         ttrace[i] = value;
       }
+
+      invalid_trace = validate_trace(ttrace, du[EVT_TOT_SAMPLES+ic]);
 
       if ( invalid_trace != 0 ){
             printf("!! Invalid Trace: %s \n", hname);
