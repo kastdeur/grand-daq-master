@@ -26,6 +26,9 @@ unsigned short *event=NULL;
 float *ttrace,*fmag,*fphase;
 int fftlen = 0;
 
+unsigned long valid_trace_counter = 0;
+unsigned long invalid_trace_counter = 0;
+
 /**
  * Validate a trace
  * @param[in] ttrace The trace to validate
@@ -232,6 +235,10 @@ void print_du(uint16_t *du)
 
       invalid_trace = validate_trace(ttrace, du[EVT_TOT_SAMPLES+ic]);
 
+	  // Increase appropriate trace counter
+	  valid_trace_counter += !invalid_trace;
+	  invalid_trace_counter += invalid_trace;
+
       if ( invalid_trace != 0 ){
             printf("!! Invalid Trace (%d): %s \n", invalid_trace, hname);
 
@@ -338,5 +345,12 @@ int main(int argc, char **argv)
     }
   }
   if (fp != NULL) fclose(fp); // close the file
+
+  // report stats
+  printf("\n");
+  printf("----- Traces Stats -----\n");
+  printf("Total: %d\n", valid_trace_counter + invalid_trace_counter);
+  printf("Valid: %d\n", valid_trace_counter);
+  printf("Invalid: %d\n", invalid_trace_counter);
   g.Close();
 }
