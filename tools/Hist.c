@@ -266,9 +266,9 @@ void print_du(uint16_t *du)
 
       invalid_trace = validate_trace(ttrace, du[EVT_TOT_SAMPLES+ic]);
 
-      // Increase appropriate trace counter
-      valid_trace_counter += !invalid_trace;
-      invalid_trace_counter += invalid_trace;
+	  // Increase appropriate trace counter
+	  valid_trace_counter += !invalid_trace;
+	  invalid_trace_counter += (bool) invalid_trace;
 
       if ( invalid_trace != 0 ){
             printf("!! Invalid Trace (%d): %s \n", invalid_trace, hname);
@@ -292,8 +292,8 @@ void print_du(uint16_t *du)
       mag_and_phase(ttrace,fmag,fphase);
 
       // Magnitude
-      sprintf(fname,"H%dFM%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
-      sprintf(hname,"H%dFM%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
+      sprintf(fname,"H%d%s%dD%d%s",du[EVT_ID],"FM",ic,du[EVT_HARDWARE],(invalid_trace == 0 ? "" : invalid_trace_suffix));
+      sprintf(hname,"H%d%s%dD%d",  du[EVT_ID],"FM",ic,du[EVT_HARDWARE]);
       Hist = new TH1F(fname,hname,fftlen/2,0.,250);
 
       for(i=0;i<fftlen/2;i++){
@@ -306,8 +306,8 @@ void print_du(uint16_t *du)
       Hist->Delete();
 
       // Phase
-      sprintf(fname,"H%dFP%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
-      sprintf(hname,"H%dFP%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
+      sprintf(fname,"H%d%s%dD%d%s",du[EVT_ID],"FP",ic,du[EVT_HARDWARE],(invalid_trace == 0 ? "" : invalid_trace_suffix));
+      sprintf(hname,"H%d%s%dD%d",  du[EVT_ID],"FP",ic,du[EVT_HARDWARE]);
       Hist = new TH1F(fname,hname,fftlen/2,0.,250);
       for(i=0;i<fftlen/2;i++){
         Hist->SetBinContent(i+1,fphase[i]);
@@ -316,8 +316,8 @@ void print_du(uint16_t *du)
       Hist->Delete();
 
       // Magnitude * Phase
-      sprintf(fname,"H%dFMP%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
-      sprintf(hname,"H%dFMP%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
+      sprintf(fname,"H%d%s%dD%d%s",du[EVT_ID],"FMP",ic,du[EVT_HARDWARE],(invalid_trace == 0 ? "" : invalid_trace_suffix));
+      sprintf(hname,"H%d%s%dD%d",  du[EVT_ID],"FMP",ic,du[EVT_HARDWARE]);
       Hist = new TH1F(fname,hname,fftlen/2,0.,250);
       for(i=0;i<fftlen/2;i++){
         Hist->SetBinContent(i+1,fphase[i]*fmag[i]);
