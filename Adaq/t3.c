@@ -19,7 +19,8 @@
 #define MAXSEC 12 // has to be above 10 to avoid missing 10sec triggers!
 #define NEVT (MAXSEC*MAXDU*MAXRATE)
 #define GIGA    1000000000
-#define T3DELAY GIGA
+#define MEGA    1000000
+#define T3DELAY (2*MEGA)
 #define TCOINC 34000  // Maximum coincidence time window
 #define TNEAR 4900 //maximum time for nearest neighbours
 #define NTRIG 4 //total at least 4 stations
@@ -223,9 +224,9 @@ void t3_maket3()
   if(idebug) printf("Entering make t3 %d\n",t2write);
   for(ind=(t2write-1);ind>=0;ind--){
     // 1st ensure that event is old enough, not likely for new data to appear
-    insertdif = tp.tv_sec-t2evts[ind].sec;
+    insertdif = tp.tv_sec-t2evts[ind].insertsec;
     if(insertdif < 2 ){ //2 or more is clearly ok!
-      insertdif = GIGA*(insertdif) + (t2evts[0].nsec-t2evts[ind].nsec);
+      insertdif = MEGA*(insertdif) + (tp.tv_usec-t2evts[ind].insertmusec);
     } else insertdif = T3DELAY+1;
     if(insertdif< T3DELAY) break;
     // if event is used, do not use it again
@@ -238,7 +239,8 @@ void t3_maket3()
     else isten = 0;
     if(t2evts[ind].trigflag&0x8) israndom = 1;
     else israndom = 0;
-    if(isten == 1) printf("A 10 sec trigger %d\n",t2evts[ind].sec);
+    if(isten == 1) printf("A 10 sec trigger %u\n",t2evts[ind].sec);
+    //if(israndom == 1) printf("A Random trigger %u\n",t2evts[ind].sec);
     for(i=ind-1;i>=0;i--){
       if(t2evts[i].sec-t2evts[ind].sec > 1) tdif = TCOINC+1;
       else if(t2evts[i].sec-t2evts[ind].sec == 1){
@@ -300,7 +302,7 @@ void t3_initialize()
 {
   int i,j;
   int Narray = sqrt(MAXDU);
-  
+
   for(i=0;i<MAXDU;i++){
     statlist[i] = 5100+i; //for now all hardcoded dummies
     posx[i] = 1000*(i%Narray);
@@ -320,10 +322,20 @@ void t3_initialize()
  */
 void t3_main()
 {
+  char fname[100];
+  FILE *fp_log;
+  
+  sprintf(fname,"%s/t3",LOG_FOLDER);
+  fp_log = fopen(fname,"w");
   t3_initialize();
   while(1) {
+    fseek(fp_log,0,SEEK_SET);
     t3_gett2();
-    if(shm_t3.Ubuf[(*shm_t3.size)*(*shm_t3.next_write)] == 0 ) t3_maket3();
-    usleep(100000);
+    fprintf(fp_log,"T2s in memory: %d\n",t2write);
+    if(shm_t3.Ubuf[(*shm_t3.size)*(*shm_t3.next_write)] == 0 )
+      t3_maket3();
+    fprintf(fp_log,"T3s created: %d\n",t3event);
+   usleep(1000);
   }
+  fclose(fp_log);
 }

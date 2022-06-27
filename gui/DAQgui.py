@@ -5,6 +5,7 @@ import subprocess
 import socket
 import sys
 import os
+import time
 
 def testPulseRange(tp):
   value = app.getEntry(tp)
@@ -179,7 +180,7 @@ def send_daq(msgid):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         # Connect to server and send data
         sock.connect(("localhost", 5010))# start the GUI
-        print(msg,"\n")
+#        print(msg,"\n")
         sock.sendall(msg)
         sock.close();
 
@@ -638,17 +639,17 @@ def DUfile(button):
     print("Oops")
 
 # create a GUI variable called app
-app = gui("Login Window", "500x200")
+app = gui("Login Window", "600x200")
 app.setBg("black")
 app.setFg("yellow")
 app.setFont(12)
 # add & configure widgets - widgets get a name, to help referencing them later
 app.addLabel("title", "Adaq gui")
 #app.setLabelBg("title", "red")
-
 # link the buttons to the function called press
 app.addButtons(["Initialize", "Start run","Stop run"], press)
 app.addButtons(["Configure CDAQ","Configure DU","Exit gui"], press)
+app.addEmptyMessage("EventBuilder")
 app.addLabelEntry("Username")
 app.addLabelSecretEntry("Password")
 #

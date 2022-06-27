@@ -38,6 +38,7 @@ typedef struct{
 
 #define CMDBUF 20 // leave 20 command buffers
 #define CMDSIZE 5000 //Max. size (in shorts) for command (should be able to hold config file)
+#define LOG_FOLDER "/tmp/daq"
 
 #ifdef _MAINDAQ
 DUInfo DUinfo[MAXDU];

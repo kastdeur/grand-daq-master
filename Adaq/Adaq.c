@@ -12,6 +12,7 @@ Altering the code without explicit consent of the author is forbidden
  ***/
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -240,20 +241,24 @@ void ad_check_processes()
  */
 int main(int argc,char **argv)
 {
-    
-    signal(SIGHUP,clean_stop);
-    signal(SIGINT,clean_stop);
-    signal(SIGTERM,clean_stop);
-    signal(SIGABRT,clean_stop);
-    signal(SIGKILL,clean_stop);
-    
+  struct stat sb;
+  
+  signal(SIGHUP,clean_stop);
+  signal(SIGINT,clean_stop);
+  signal(SIGTERM,clean_stop);
+  signal(SIGABRT,clean_stop);
+  signal(SIGKILL,clean_stop);
+  
+  if (!(stat(LOG_FOLDER, &sb) == 0 && S_ISDIR(sb.st_mode))) {
+    mkdir(LOG_FOLDER,S_IRWXU);
+  }
   if(argc>1) sscanf(argv[1],"%d",&idebug);
-    if(argc>2) configfile = argv[2];
-    else configfile = DEFAULT_CONFIGFILE;
-    ad_initialize(configfile);
-    stop_process = 0;
-    while(stop_process == 0){
-        ad_check_processes();
-        sleep(1); // check every second
-    }
+  if(argc>2) configfile = argv[2];
+  else configfile = DEFAULT_CONFIGFILE;
+  ad_initialize(configfile);
+  stop_process = 0;
+  while(stop_process == 0){
+    ad_check_processes();
+    sleep(1); // check every second
+  }
 }
