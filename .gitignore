@@ -11,3 +11,7 @@ tools/Hist
 dudaq/myfiles/du_monitor.h~
 dudaq/myfiles/Makefile~
 dudaq/myfiles/monitor.c~
+*.root
+tools/Traces
+tools/Traces
+dudaq/.DS_Store

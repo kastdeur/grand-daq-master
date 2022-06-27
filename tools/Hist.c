@@ -115,6 +115,8 @@ void print_du(uint16_t *du)
   int i,ic;
   int ioff;
   short value;
+  short bit14;
+  int mask;
   char hname[100],fname[100];
   
   printf("\t T3 ID = %u\n",du[EVT_ID]);
@@ -179,6 +181,11 @@ void print_du(uint16_t *du)
       TH1F *Hist = new TH1F(fname,hname,du[EVT_TOT_SAMPLES+ic],0.,2*du[EVT_TOT_SAMPLES+ic]);
       for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
         value =(int16_t)du[ioff++];
+        bit14 = (value & ( 1 << 13 )) >> 13;
+        mask = 1 << 14; // --- bit 15
+        value = (value & (~mask)) | (bit14 << 14);
+        mask = 1 << 15; // --- bit 16
+        value = (value & (~mask)) | (bit14 << 15);
         Hist->SetBinContent(i+1,value);
         ttrace[i] = value;
       }

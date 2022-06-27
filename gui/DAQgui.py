@@ -392,21 +392,20 @@ def DUfile(button):
             for ch in range(1,5):
               if (value & 1<<(ch-1)) == 0:
                 app.setOptionBox("Channel "+str(ch),"Off")
-            if ( value & 1<<7 ) != 0:
-              idivider = value >>8
-              if idivider != 0:
-                divider = 0
-                for idiv in range (1,idivider+1):
-                  incr = 1
-                  if (idiv > 224): incr = 128
-                  elif (idiv > 192): incr = 64
-                  elif (idiv > 160): incr = 32
-                  elif (idiv > 128): incr = 16
-                  elif (idiv > 96): incr = 8
-                  elif (idiv > 64): incr = 4
-                  elif (idiv > 32): incr = 2
-                  divider += incr
-                rate = int(1000000/divider)
+            idivider = value >>8
+            if idivider != 0:
+              divider = 0
+              for idiv in range (1,idivider+1):
+                incr = 1
+                if (idiv > 224): incr = 128
+                elif (idiv > 192): incr = 64
+                elif (idiv > 160): incr = 32
+                elif (idiv > 128): incr = 16
+                elif (idiv > 96): incr = 8
+                elif (idiv > 64): incr = 4
+                elif (idiv > 32): incr = 2
+                divider += incr
+              rate = int(1000000/divider)
             app.setEntry("Test Pulse",rate)
           if address == 6:
               app.setEntry("Tover",int(words[2],0)<<1)
@@ -551,7 +550,6 @@ def DUfile(button):
           iread+=(idiv<<8)
           app.setEntry("Test Pulse",newrate)
         oldrate = newrate
-      iread +=(1<<7)
     for ch in range(1,5):
         if app.getOptionBox("Channel "+str(ch)) != "Off":
           iread+=(1<<(ch-1))

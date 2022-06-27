@@ -99,7 +99,10 @@ void print_du(uint16_t *du)
 {
   int i,ic;
   int ioff;
-  
+  short value;
+  short bit14;
+  int mask;
+
   printf("\t T3 ID = %u\n",du[EVT_ID]);
   printf("\t DU ID = %u\n",du[EVT_HARDWARE]);
   printf("\t DU time = %u.%09u\n",*(uint32_t *)&du[EVT_SECOND],
@@ -151,7 +154,13 @@ void print_du(uint16_t *du)
   for(ic=1;ic<=4;ic++){
     printf("\t ADC %d:\n\t",ic);
     for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
-      printf(" %5d",(int16_t)du[ioff++]);
+      value =(int16_t)du[ioff++];
+      bit14 = (value & ( 1 << 13 )) >> 13;
+      mask = 1 << 14; // --- bit 15
+      value = (value & (~mask)) | (bit14 << 14);
+      mask = 1 << 15; // --- bit 16
+      value = (value & (~mask)) | (bit14 << 15);
+      printf(" %5d",(int16_t)value);
       if((i%12) ==11) printf("\n\t");
     }
     printf("\n");
