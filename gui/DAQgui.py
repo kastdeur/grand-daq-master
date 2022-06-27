@@ -4,6 +4,7 @@ from array import array
 import subprocess
 import socket
 import sys
+import os
 
 def testPulseRange(tp):
   value = app.getEntry(tp)
@@ -658,7 +659,8 @@ app.setSize(800, 300)
 row = app.getRow()
 app.addButton("Read DAQ Configuration file",confbut,row,0)
 app.addEntry("conffile",row,1,2)
-app.setEntry("conffile","/Users/timmer/Work/GRAND/grand-daq-master/conf/Adaq.conf")
+fname = os.environ.get("GRANDDAQ_CONF","/")+"Adaq.conf"
+app.setEntry("conffile",fname)
 app.setEntryWidth("conffile",len(app.getEntry("conffile")))
 app.addButton("Write DAQ Configuration file",confbut)
 app.addLabelNumericEntry("Next Run")
@@ -686,7 +688,8 @@ app.setSize(1100, 750)
 row = 0
 app.addButton("Read DU Configuration file",DUfile,row,0)
 app.addEntry("DUconffile",row,1,2)
-app.setEntry("DUconffile","/Users/timmer/Work/GRAND/grand-daq-master/conf/DU.conf")
+fname = os.environ.get("GRANDDAQ_CONF","/")+"DU.conf"
+app.setEntry("DUconffile",fname)
 app.setEntryWidth("DUconffile",len(app.getEntry("DUconffile")))
 app.addNamedButton("Verify","VerifyCP",VerifyRanges,row,3)
 app.addNamedButton("Exit","DigitalModule",app.hideSubWindow,row,4)
