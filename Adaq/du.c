@@ -32,8 +32,8 @@ extern int errno;
 void du_send();
 uint16_t du_read_initfile();
 
-#define SOCKETS_BUFFER_SIZE  1048576
-#define SOCKETS_TIMEOUT      100
+#define SOCKETS_BUFFER_SIZE  131072
+#define SOCKETS_TIMEOUT      200
 
 /*!
  \func du_interpret(uint16_t *buffer)

@@ -42,7 +42,7 @@ extern uint32_t shadowlist[Reg_End>>2];
 
 
 #define SOCKETS_BUFFER_SIZE  131072
-#define SOCKETS_TIMEOUT      100
+#define SOCKETS_TIMEOUT      200
 
 int du_port;       //!<port number on which to connect to the central daq
 
@@ -427,8 +427,8 @@ int send_server_data(){
     sentBytes = 0;
     while(sentBytes<length){
       if(length-sentBytes>400) bsent=400;
-      else 
-	bsent = length-sentBytes;
+      else
+        bsent = length-sentBytes;
       rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
                      (struct sockaddr*)&DU_address,DU_alength);
       if(rsend<0 && errno != EAGAIN) {
@@ -446,7 +446,7 @@ int send_server_data(){
       DU_comms = -1;
       return(-1);
     }
-    usleep(200);
+    usleep(100);
   }
   buffer_add_monitor(&(DU_output[1]),MAX_OUT_MSG-1,station_id); // Next: monitor information
   if(DU_output[1] == 0) return(rsend); // nothing to do
@@ -458,8 +458,8 @@ int send_server_data(){
   sentBytes = 0;
   while(sentBytes<length){
     if(length-sentBytes>400) bsent=400;
-    else 
-	bsent = length-sentBytes;
+    else
+      bsent = length-sentBytes;
     rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
                    (struct sockaddr*)&DU_address,DU_alength);
     if(rsend<0 && errno != EAGAIN) {
@@ -468,7 +468,7 @@ int send_server_data(){
       break;
     }
     if(rsend>0) sentBytes +=rsend;
-    usleep(200);
+    usleep(100);
   } //while sentbytes
   
   return(1);
@@ -532,7 +532,7 @@ int send_t3_event()
       break;
     }
     if(rsend>0) sentBytes +=rsend;
-    usleep(200);
+    usleep(20);
   } //while sentbytes
   if(sentBytes < length) { // it did not work
     printf("Sending event failed %d\n",length-sentBytes);
@@ -741,17 +741,18 @@ void du_socket_main(int argc,char **argv)
     //printf("In the main loop\n");
     gettimeofday(&tnow,&tzone);
     tdif = (float)(tnow.tv_sec-tprev.tv_sec)+(float)( tnow.tv_usec-tprev.tv_usec)/1000000.;
-    if(tdif>=0.3 || prev_msg == 1 ){                          // every 0.3 seconds, this is really only needed for phase2
-      while(send_t3_event() > 0) usleep(10);
+    if(tdif>=0.01 || prev_msg == 1 ){                          // every 0.3 seconds, this is really only needed for phase2
+      i = 0;
+      while(send_t3_event() > 0 &&i<1) i++;
       prev_msg = 0;
       //printf("Check server data\n");
-      if(check_server_data() > 0){  // check on an AERA command
+      if(check_server_data() > 0){  // check on an Adaq command
         //printf("handled server data\n");
         tcontact.tv_sec = tnow.tv_sec;
         tcontact.tv_usec = tnow.tv_usec;
         prev_msg = 1;
       }
-      if(send_server_data() > 0){                  // send data to AERA
+      if(send_server_data() > 0){                  // send data to Adaq
         tcontact.tv_sec = tnow.tv_sec;
         tcontact.tv_usec = tnow.tv_usec;
       }
@@ -763,7 +764,7 @@ void du_socket_main(int argc,char **argv)
       if(*(shm_gps.next_read) != *(shm_gps.next_write)){
         if(*(shm_gps.next_write) == prevgps){
           printf("There used to be a reboot due to timeout on socket\n");
-        //  system("/sbin/reboot");
+          //  system("/sbin/reboot");
         }
         prevgps = *(shm_gps.next_write);
       }
@@ -781,11 +782,11 @@ void du_socket_main(int argc,char **argv)
         close(DU_socket);
         DU_socket = -1;
       }
-      sleep(5);
+      sleep(1);
       make_server_connection(du_port);
       tcontact.tv_sec = tnow.tv_sec;
     }
-    usleep(10000);
+    usleep(1000);
   }
 }
 
