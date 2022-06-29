@@ -153,7 +153,13 @@ int ad_init_param(char *file)
         if(strcmp(key,"EBDIR") == 0){
             sscanf(line,"%s %s",key,eb_dir);
         }
-        if(strcmp(key,"T3RAND") == 0){
+      if(strcmp(key,"T3STAT") == 0){
+          sscanf(line,"%s %d",key,&t3_stat);
+      }
+      if(strcmp(key,"T3TIME") == 0){
+          sscanf(line,"%s %d",key,&t3_time);
+      }
+       if(strcmp(key,"T3RAND") == 0){
             sscanf(line,"%s %d",key,&t3_rand);
         }
     }

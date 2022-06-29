@@ -339,6 +339,11 @@ int scope_fake_event(int32_t ioff)
 }
 #endif
 
+int scope_t2()
+{
+  return(1);
+}
+
 int scope_read_event(int32_t ioff)
 {
   static uint16_t evtnr=0;
@@ -399,7 +404,7 @@ int scope_read_event(int32_t ioff)
     timestampbuf[next_write].ts_nanoseconds = *nanosec;
     timestampbuf[next_write].event_nr = evtbuf[offset+EVT_ID];
     timestampbuf[next_write].trigmask = evtbuf[offset+EVT_TRIG_PAT];
-    next_write+=ioff;
+    if(scope_t2() == 1) next_write+=ioff;
     if(next_write >=BUFSIZE) next_write = 0;
     *shm_ts.next_write = next_write;
     ptr_evt +=ioff;

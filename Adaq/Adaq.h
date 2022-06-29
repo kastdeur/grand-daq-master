@@ -40,6 +40,10 @@ typedef struct{
 #define CMDSIZE 5000 //Max. size (in shorts) for command (should be able to hold config file)
 #define LOG_FOLDER "/tmp/daq"
 
+#define TCOINC 2000  // Maximum coincidence time window
+#define NTRIG 2 //total at least 2 stations
+
+
 #ifdef _MAINDAQ
 DUInfo DUinfo[MAXDU];
 int tot_du;
@@ -54,6 +58,8 @@ int eb_max_evts = 10;
 char eb_dir[80];
 //T3 parameters
 int t3_rand = 0; 
+int t3_stat = NTRIG;
+int t3_time = TCOINC;
 #else
 extern DUInfo DUinfo[MAXDU];
 extern int tot_du;
@@ -66,4 +72,6 @@ extern int eb_run_mode;
 extern int eb_max_evts ;
 extern char eb_dir[80]; 
 extern int t3_rand;
+extern int t3_stat;
+extern int t3_time;
 #endif

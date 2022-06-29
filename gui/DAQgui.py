@@ -186,6 +186,9 @@ def send_daq(msgid):
 
 def press(button):
     if button == "Initialize":
+        #os.system("killall Adaq")
+        #os.system("Adaq/Adaq &")
+        #time.sleep(1)
         send_daq(402)
     elif button == "Start run":#
         send_daq(403)
@@ -237,6 +240,10 @@ def confbut(button):
         app.setEntryWidth("Data Folder",len(app.getEntry("Data Folder")))
       elif words[0] == "T3RAND":
         app.setEntry("Random",words[1])
+      elif words[0] == "T3STAT":
+        app.setEntry("Nstat",words[1])
+      elif words[0] == "T3TIME":
+        app.setEntry("Tcoin",words[1])
 #      else :
 #        print(words[0])
     fp.close()
@@ -264,6 +271,8 @@ def confbut(button):
     fp.write("EBSIZE "+str(int(app.getEntry("File Size")))+"\n")
     fp.write("EBDIR "+app.getEntry("Data Folder")+"\n")
     fp.write("T3RAND "+str(int(app.getEntry("Random")))+"\n")
+    fp.write("T3STAT "+str(int(app.getEntry("Nstat")))+"\n")
+    fp.write("T3TIME "+str(int(app.getEntry("Tcoin")))+"\n")
     fp.close();
   elif button == "Add Station":
     statlist=[]
@@ -669,6 +678,8 @@ app.addLabelOptionBox("Run Mode",["- Mode -","Physics","Test"])
 app.setOptionBox("Run Mode","Physics",True)
 app.addLabelNumericEntry("File Size")
 app.addLabelNumericEntry("Random")
+app.addLabelNumericEntry("Nstat")
+app.addLabelNumericEntry("Tcoin")
 app.setSticky("w")
 app.addLabelEntry("Data Folder",colspan=2)
 app.setSticky("")

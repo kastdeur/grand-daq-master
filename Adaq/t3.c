@@ -1,7 +1,7 @@
 /***
  T3 Maker
- Version:1.0
- Date: 18/2/2020
+ Version:2.0
+ Date: 27/6/2022
  Author: Charles Timmermans, Nikhef/Radboud University
  
  Altering the code without explicit consent of the author is forbidden
@@ -21,10 +21,8 @@
 #define GIGA    1000000000
 #define MEGA    1000000
 #define T3DELAY (2*MEGA)
-#define TCOINC 34000  // Maximum coincidence time window
+#define NNEAR 0 // station needs 2 nearest neghbours to fire (ie 3 DUs  in 1 km2)
 #define TNEAR 4900 //maximum time for nearest neighbours
-#define NTRIG 4 //total at least 4 stations
-#define NNEAR 2 // station needs 2 nearest neghbours to fire (ie 3 DUs  in 1 km2)
 
 typedef struct{
   int stat;
@@ -248,7 +246,7 @@ void t3_maket3()
       }else{
         tdif = t2evts[i].nsec-t2evts[ind].nsec;
       }
-      if(tdif <= ctimes[t2evts[i].unit][t2evts[ind].unit]) {
+      /*if(tdif <= ctimes[t2evts[i].unit][t2evts[ind].unit]) { // later when we have a field
         if ((isten && (t2evts[i].trigflag&0x4)) || (isten==0 &&(t2evts[i].trigflag&0x4))==0){
           eventindex[evsize] = i;
           evsize++;
@@ -259,10 +257,13 @@ void t3_maket3()
           if((ctimes[t2evts[i].unit][t2evts[ind].unit]<=TNEAR)
              &&(t2evts[i].unit != t2evts[ind].unit)) evnear++;
         }
-      } else if(tdif>TCOINC) break;
+      } else if(tdif>TCOINC) break;*/
+      if(tdif<=t3_time) evsize++;
+      else break;
     }
     // trigger condition is easy
-    if((evsize>=NTRIG &&evnear>=NNEAR) || isten == 1 || israndom == 1) {
+    //if((evsize>=NTRIG &&evnear>=NNEAR) || isten == 1 || israndom == 1) {
+    if(evsize>=t3_stat || isten == 1 || israndom == 1) {
       if(isten == 1) printf("Found a T10 with %d stations T=%u\n",evsize,t2evts[ind].sec);
       //start creating the list to send
       t3list[0] = 3; // length before adding a station
@@ -331,10 +332,10 @@ void t3_main()
   while(1) {
     fseek(fp_log,0,SEEK_SET);
     t3_gett2();
-    fprintf(fp_log,"T2s in memory: %d\n",t2write);
+    fprintf(fp_log,"T2s in memory: %6d\n",t2write);
     if(shm_t3.Ubuf[(*shm_t3.size)*(*shm_t3.next_write)] == 0 )
       t3_maket3();
-    fprintf(fp_log,"T3s created: %d\n",t3event);
+    fprintf(fp_log,"T3s created: %6d\n",t3event);
    usleep(1000);
   }
   fclose(fp_log);

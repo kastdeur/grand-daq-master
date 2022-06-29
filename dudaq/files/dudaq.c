@@ -41,7 +41,7 @@ extern int errno; //!< the number of the error encountered
 extern uint32_t shadowlist[Reg_End>>2];
 
 
-#define SOCKETS_BUFFER_SIZE  1048576
+#define SOCKETS_BUFFER_SIZE  131072
 #define SOCKETS_TIMEOUT      100
 
 int du_port;       //!<port number on which to connect to the central daq
@@ -426,7 +426,7 @@ int send_server_data(){
     length = 2*DU_output[0]+2;
     sentBytes = 0;
     while(sentBytes<length){
-      if(length-sentBytes>64) bsent=64;
+      if(length-sentBytes>400) bsent=400;
       else 
 	bsent = length-sentBytes;
       rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
@@ -457,9 +457,9 @@ int send_server_data(){
   length = 2*DU_output[0]+2;
   sentBytes = 0;
   while(sentBytes<length){
-    if(length-sentBytes>500) bsent=500;
-    else
-      bsent = length-sentBytes;
+    if(length-sentBytes>400) bsent=400;
+    else 
+	bsent = length-sentBytes;
     rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
                    (struct sockaddr*)&DU_address,DU_alength);
     if(rsend<0 && errno != EAGAIN) {
@@ -484,7 +484,7 @@ int send_server_data(){
  * - Add requested event to the output buffer
  * - send output buffer to the central DAQ
  * - If this failed, close the connection to the central DAQ
- *
+ * 
  * \author C. Timmermans
  */
 
@@ -521,8 +521,8 @@ int send_t3_event()
   length = 2*DU_output[0]+2;
   sentBytes = 0;
   while(sentBytes<length){
-    if(length-sentBytes>64) bsent=64;
-    else
+    if(length-sentBytes>400) bsent=400;
+    else 
       bsent = length-sentBytes;
     rsend = sendto(DU_comms, &(bf[sentBytes]),bsent, 0,
                    (struct sockaddr*)&DU_address,DU_alength);
@@ -570,7 +570,7 @@ void du_scope_check_commands()
   du_geteventbody *getevt;
   uint32_t ssec;
   uint16_t trflag;
-  
+
   //printf("Check cmds %d\n",*shm_cmd.next_read);
   while(((shm_cmd.Ubuf[(*shm_cmd.size)*(*shm_cmd.next_read)]) &1) ==  1){ // loop over the T3 input
     //printf("Received command\n");
@@ -586,12 +586,12 @@ void du_scope_check_commands()
         scope_initialize(&station_id); // resets and initialize scope
         il = 3;
         while(il<msg_len){ //word swapping
-          addr = msg_start[il+1]>>1;
-          //if((addr&1))addr -=1;
-          //else addr+=1;
+	  addr = msg_start[il+1]>>1;
+	  //if((addr&1))addr -=1;
+	  //else addr+=1;
           if(msg_start[il+1]<Reg_End) sl[addr] = msg_start[il+2];
           il+=3;
-        }
+	}  
         scope_copy_shadow();
         scope_create_memory();
         break;
@@ -607,13 +607,13 @@ void du_scope_check_commands()
       case DU_GETEVENT:                 // request event
       case DU_GET_MINBIAS_EVENT:                 // request event
       case DU_GET_RANDOM_EVENT:                 // request event
-        getevt = (du_geteventbody *)&msg_start[AMSG_OFFSET_BODY];
-        trflag = 0;
-        if(msg_tag == DU_GET_MINBIAS_EVENT)trflag = TRIGGER_T3_MINBIAS;
-        if(msg_tag == DU_GET_RANDOM_EVENT)trflag = TRIGGER_T3_RANDOM;
-        ssec = (getevt->NS3+(getevt->NS2<<8)+(getevt->NS1<<16));
-        printf("Requesting Event %d %d %d %d\n",getevt->event_nr,msg_tag,getevt->sec,ssec);
-        scope_event_to_shm(getevt->event_nr,trflag,getevt->sec,ssec);
+	getevt = (du_geteventbody *)&msg_start[AMSG_OFFSET_BODY];
+	trflag = 0;
+	if(msg_tag == DU_GET_MINBIAS_EVENT)trflag = TRIGGER_T3_MINBIAS;
+	if(msg_tag == DU_GET_RANDOM_EVENT)trflag = TRIGGER_T3_RANDOM;
+	ssec = (getevt->NS3+(getevt->NS2<<8)+(getevt->NS1<<16));
+	printf("Requesting Event %d %d %d %d\n",getevt->event_nr,msg_tag,getevt->sec,ssec);
+	scope_event_to_shm(getevt->event_nr,trflag,getevt->sec,ssec);
         break;
       default:
         printf("Received unimplemented message %d\n",msg_tag);
