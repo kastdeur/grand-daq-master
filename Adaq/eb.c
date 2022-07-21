@@ -228,8 +228,11 @@ void eb_getdata(){
     //printf("EB getdata: loop over input. TAG = %d\n",msg->tag);
     if(msg->tag == DU_EVENT){
       DUinfo = (uint16_t *)msg->body;
-      if(i_DUbuffer < NDU) memcpy((void *)&DUbuffer[i_DUbuffer],(void *)DUinfo,2*DUinfo[EVT_LENGTH]);
-      if(running ==1) i_DUbuffer +=1;
+      printf("Trying to copy event of length %d (max is %d)\n",DUinfo[EVT_LENGTH],EVSIZE);
+      if(DUinfo[EVT_LENGTH] < EVSIZE){
+	if(i_DUbuffer < NDU) memcpy((void *)&DUbuffer[i_DUbuffer],(void *)DUinfo,2*DUinfo[EVT_LENGTH]);
+	if(running ==1) i_DUbuffer +=1;
+      }
     } else if(msg->tag == DU_MONITOR){
       if(fpmon != NULL){
         memcpy(&firmware,&msg->body[1],4);
@@ -246,7 +249,7 @@ void eb_getdata(){
     *shm_eb.next_read = (*shm_eb.next_read) + 1;
     if( *shm_eb.next_read >= *shm_eb.nbuf) *shm_eb.next_read = 0;
   }
-  if(i_DUbuffer > NDU) i_DUbuffer = NDU;
+  if(i_DUbuffer >= NDU) i_DUbuffer = NDU-1;
   if(i_DUbuffer>0 && inew == 1) {
     qsort(DUbuffer[0],i_DUbuffer,2*EVSIZE,eb_DUcompare);
   }

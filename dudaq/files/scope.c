@@ -232,7 +232,7 @@ int scope_fake_gps()
   ppsbuf[offset+PPS_DAYMONTH] = 100*now->tm_mday+now->tm_mon+1;
   ppsbuf[offset+PPS_MINHOUR] = 100*now->tm_min+now->tm_hour;
   ppsbuf[offset+PPS_STATSEC] = now->tm_sec;
-  //printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
+  printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
   prevgps = evgps;
   evgps++;
   if(evgps>=GPSSIZE)evgps = 0;
@@ -451,6 +451,7 @@ int32_t scope_read_pps()
   }
   ctp = *(uint32_t *)&ppsbuf[offset+PPS_CTP];
   ctp = ctp&0x7fffffff;
+  printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
   prevgps = evgps;
   evgps++;
   if(evgps>=GPSSIZE)evgps = 0;

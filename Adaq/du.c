@@ -1,10 +1,8 @@
-/// @file ls.c
+/// @file du.c
 /// @brief routines interfacing to the socket
 /// @author C. Timmermans, Nikhef/RU
 /***
  local Station interfacing
- Version:1.0
- Date: 18/2/2020
  Author: Charles Timmermans, Nikhef/Radboud University
  
  Altering the code without explicit consent of the author is forbidden
@@ -34,7 +32,7 @@ void du_send();
 uint16_t du_read_initfile();
 
 #define SOCKETS_BUFFER_SIZE  131072
-#define SOCKETS_TIMEOUT      200
+#define SOCKETS_TIMEOUT      600
 
 /*!
  \func du_interpret(uint16_t *buffer)
@@ -53,7 +51,7 @@ void du_interpret(uint16_t *buffer)
   while(i<buffer[0]-1){
     msg = (AMSG *)(&(buffer[i]));
     t2b = (T2BODY *)msg->body;
-    //printf("DU: received message %d\n",msg->tag);
+    //printf("DU: received message %d First word %d %d %d\n",msg->tag,msg->body[0],msg->body[1],msg->body[2]);
     switch(msg->tag){ //based on tag, data is moved to different servers
       case DU_T2:
         if(msg->length<T2SIZE){
@@ -81,19 +79,24 @@ void du_interpret(uint16_t *buffer)
         //printf("DU: Receive monitor info Stat=%d Sec=%d rate=%d\n",buffer[i+2]&0xff,*(int *)&buffer[i+3],buffer[i+5]);
         //  break;
       case DU_EVENT:
-        if(idebug) printf("Received an event\n");
+        //if(idebug)
+	  printf("Received an event\n");
       case DU_NO_EVENT:
         if(msg->length<EVSIZE){
           // wait until the shared memory is not full
-          while(shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_write)] == 1) {//infinite loop, potential problem!
-            //printf("DU: Wait for EB\n");
+	  ntry = 0;
+          while(shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_write)] == 1 && ntry <100) {//infinite loop, potential problem!
+            printf("DU: Wait for EB\n");
+	    ntry++;
             usleep(1000); // wait for the event builder to be ready
           }
           // copy the event/monitor data
-          memcpy((void *)&(shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_write)+1]),(void *)msg,2*msg->length);
-          shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_write)] = 1;
-          *shm_eb.next_write = *shm_eb.next_write + 1;
-          if(*shm_eb.next_write >= *shm_eb.nbuf) *shm_eb.next_write = 0;
+          if(ntry<100){
+	    memcpy((void *)&(shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_write)+1]),(void *)msg,2*msg->length);
+	    shm_eb.Ubuf[(*shm_eb.size)*(*shm_eb.next_write)] = 1;
+	    *shm_eb.next_write = *shm_eb.next_write + 1;
+	    if(*shm_eb.next_write >= *shm_eb.nbuf) *shm_eb.next_write = 0;
+	  }
         } else{
           printf("DU: Error: Too much EVENT information in a single message, data ignored\n");
         }
@@ -302,9 +305,12 @@ void du_read()
           if(recvRet>0) {
             bytesRead+=recvRet;
             ntry = 0;
-          }
-          ntry++;
-          if(ntry == 100) {
+          }else{
+	    ntry++;
+	    usleep(10);
+	  }
+          if(ntry == 20) {
+	    printf("Socket read error %d %d\n",2*buffer[0]+2,bytesRead);
             buffer[0] = 0;
             shutdown(DUinfo[i].DUsock,SHUT_RDWR);
             close(DUinfo[i].DUsock);
@@ -321,13 +327,19 @@ void du_read()
           DUinfo[i].LSTconnect = 0;
           break;
         }else {
-          bytesRead += recvRet;
-          ntry = 0;
+	  if(recvRet>0){
+	    bytesRead += recvRet;
+	    ntry = 0;
+	  }else{
+	    ntry++;
+	    usleep(10);
+	  }
         }
-        usleep(2*SOCKETS_TIMEOUT);
       } // while read data
-      if(buffer[0] > 0) {
+      if(buffer[0] > 0 &&bytesRead == 2*(buffer[0]+1)&&recvRet>0) {
         du_interpret(buffer);
+      }else{
+	printf("DU Error in Receive %d %d %d\n",bytesRead,2*buffer[0]+2,recvRet);
       }
       DUinfo[i].LSTconnect = tnow.tv_sec;
     }

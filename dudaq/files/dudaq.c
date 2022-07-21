@@ -1,4 +1,4 @@
-/// @file
+// @file
 /// @brief steering file for the Detector Unit software
 /// @author C. Timmermans, Nikhef/RU
 
@@ -42,7 +42,7 @@ extern uint32_t shadowlist[Reg_End>>2];
 
 
 #define SOCKETS_BUFFER_SIZE  131072
-#define SOCKETS_TIMEOUT      200
+#define SOCKETS_TIMEOUT      1600
 
 int du_port;       //!<port number on which to connect to the central daq
 
@@ -248,7 +248,7 @@ int check_server_data()
   uint16_t isec;
   uint32_t ssec;
   
-  int32_t bytesRead,recvRet;
+  int32_t bytesRead,recvRet,ntry;
   int32_t length;
   unsigned char *bf = (unsigned char *)DU_input;
   struct timeval timeout;
@@ -261,6 +261,7 @@ int check_server_data()
     FD_SET(DU_comms, &sockset);
     i= select(DU_comms+1, &sockset, NULL, NULL, &timeout);
     if (i < 0){
+      printf("Check server: shutting down comms\n");
       // You have an error
       shutdown(DU_comms,SHUT_RDWR);
       close(DU_comms);
@@ -286,11 +287,12 @@ int check_server_data()
   }
   //printf("There is data\n");
   DU_input[0] = 0;
+  printf("reading server data\n");
   while(DU_input[0] <= 1){
     DU_input[0] = -1;
     RD_alength = DU_alength;
-    if((recvRet = recvfrom(DU_comms, DU_input,2,0,(struct sockaddr*)&DU_address,&RD_alength))==2){ //read the buffer size
-      if ((DU_input[0] < 0) || (DU_input[0]>MAX_INP_MSG)) {
+    if((recvRet = recvfrom(DU_comms, DU_input,2,MSG_WAITALL,(struct sockaddr*)&DU_address,&RD_alength))==2){ //read the buffer size
+	if ((DU_input[0] < 0) || (DU_input[0]>MAX_INP_MSG)) {
         printf("Check Server Data: bad buffer size when receiving socket data (%d shorts)\n", DU_input[0]);
         shutdown(DU_comms,SHUT_RDWR);
         close(DU_comms);
@@ -298,11 +300,14 @@ int check_server_data()
         return(-1);
       }
       bytesRead = 2;
-      while (bytesRead < (2*DU_input[0]+2)) {
+      ntry = 0;
+      while (bytesRead < (2*DU_input[0]+2)&&ntry<1000) {
         RD_alength = DU_alength;
         recvRet = recvfrom(DU_comms,&bf[bytesRead],
                            2*DU_input[0]+2-bytesRead,0,(struct sockaddr*)&DU_address,&RD_alength);
-        if(errno == EAGAIN && recvRet<0) continue;
+	if(recvRet>0) ntry=0;
+	else ntry++; 
+	if(errno == EAGAIN && recvRet<0) continue;
         if (recvRet <= 0) {
           printf("Check Server Data: connection died when receiving socket data\n");
           shutdown(DU_comms,SHUT_RDWR);
@@ -313,16 +318,16 @@ int check_server_data()
         bytesRead += recvRet;
       } // while read data
     }else{
-      if(errno == EAGAIN) { // no data
-        DU_input[0] = 0;
-        break;
-      }else{
+      // if(errno == EAGAIN) { // no data
+      //  DU_input[0] = 0;
+      //  break;
+      //}else{
         printf("Check Server Data: connection died before getting data\n");
         shutdown(DU_comms,SHUT_RDWR);
         close(DU_comms);
         DU_comms = -1;
         return(-1);
-      }
+	//}
     }
   }
   
@@ -341,7 +346,7 @@ int check_server_data()
       printf("Error: message is too long: %d\n",msg_len);
       break;
     }
-    //printf("Received message %d\n",msg_tag);
+    printf("Received message %d\n",msg_tag);
     switch(msg_tag){
       case DU_RESET:
       case DU_INITIALIZE:
@@ -397,7 +402,7 @@ int check_server_data()
  */
 int send_server_data(){
   int32_t sentBytes;
-  int32_t rsend;
+  int32_t rsend,ntry;
   char *bf = (char *)DU_output;
   int32_t length,bsent;
   DU_alength = sizeof(DU_address);
@@ -425,7 +430,8 @@ int send_server_data(){
     DU_output[DU_output[0]] = GRND2;
     length = 2*DU_output[0]+2;
     sentBytes = 0;
-    while(sentBytes<length){
+    ntry = 0;
+    while(sentBytes<length && ntry < 1000){
       if(length-sentBytes>400) bsent=400;
       else
         bsent = length-sentBytes;
@@ -436,10 +442,15 @@ int send_server_data(){
         sentBytes = rsend;
         break;
       }
-      if(rsend>0) sentBytes +=rsend;
-      if(sentBytes<length) usleep(1000);
+      if(rsend>0) {
+	sentBytes +=rsend;
+	ntry = 0;
+      } else{
+	ntry++;
+	if(sentBytes<length) usleep(100);
+      }
     } //while sentbytes
-    if(sentBytes <= 0) { // it did not work
+    if(sentBytes <= 0 || ntry >= 1000) { // it did not work
       printf("Sending T2 did not work for socket %d %d\n",DU_comms,errno);
       shutdown(DU_comms,SHUT_RDWR);
       close(DU_comms);
@@ -456,7 +467,8 @@ int send_server_data(){
   DU_output[DU_output[0]] = GRND2;
   length = 2*DU_output[0]+2;
   sentBytes = 0;
-  while(sentBytes<length){
+  ntry = 0;
+  while(sentBytes<length && ntry < 1000){
     if(length-sentBytes>400) bsent=400;
     else
       bsent = length-sentBytes;
@@ -467,8 +479,13 @@ int send_server_data(){
       sentBytes = rsend;
       break;
     }
-    if(rsend>0) sentBytes +=rsend;
-    usleep(100);
+    if(rsend>0) {
+      sentBytes +=rsend;
+      ntry = 0;
+    }else{
+      ntry++;
+      usleep(100);
+    }
   } //while sentbytes
   
   return(1);
@@ -491,7 +508,7 @@ int send_server_data(){
 int send_t3_event()
 {
   int32_t sentBytes;
-  int32_t rsend;
+  int32_t rsend,ntry;
   char *bf = (char *)DU_output;
   int32_t length,bsent;
   DU_alength= sizeof(DU_address);
@@ -512,7 +529,7 @@ int send_t3_event()
   }
   buffer_add_t3(&(DU_output[1]),MAX_OUT_MSG-3,station_id);
   if(DU_output[1] == 0) return(0); // nothing to do
-  //printf("Sending T3 event %d\n",DU_output[1]);
+  printf("Sending T3 event %d\n",DU_output[1]);
   DU_output[0] = DU_output[1]+2;
   DU_output[DU_output[0]-1] = GRND1;
   DU_output[DU_output[0]] = GRND2;
@@ -520,7 +537,8 @@ int send_t3_event()
   //printf("\n");
   length = 2*DU_output[0]+2;
   sentBytes = 0;
-  while(sentBytes<length){
+  ntry = 0;
+  while(sentBytes<length && ntry < 1000){
     if(length-sentBytes>400) bsent=400;
     else 
       bsent = length-sentBytes;
@@ -531,8 +549,14 @@ int send_t3_event()
       sentBytes = rsend;
       break;
     }
-    if(rsend>0) sentBytes +=rsend;
-    usleep(20);
+    if(rsend>0) {
+      sentBytes +=rsend;
+      ntry = 0;
+      usleep(20);
+    } else{
+      ntry++;
+      usleep(20);
+    }
   } //while sentbytes
   if(sentBytes < length) { // it did not work
     printf("Sending event failed %d\n",length-sentBytes);
@@ -541,7 +565,7 @@ int send_t3_event()
     DU_comms = -1;
     return(-1);
   }
-  //printf("Sending event succeeded\n");
+  printf("Sending event succeeded\n");
   return(1);
 }
 
@@ -741,7 +765,7 @@ void du_socket_main(int argc,char **argv)
     //printf("In the main loop\n");
     gettimeofday(&tnow,&tzone);
     tdif = (float)(tnow.tv_sec-tprev.tv_sec)+(float)( tnow.tv_usec-tprev.tv_usec)/1000000.;
-    if(tdif>=0.01 || prev_msg == 1 ){                          // every 0.3 seconds, this is really only needed for phase2
+    if(tdif>=0.2 || prev_msg == 1 ){                          // every 0.3 seconds, this is really only needed for phase2
       i = 0;
       while(send_t3_event() > 0 &&i<1) i++;
       prev_msg = 0;
@@ -772,6 +796,7 @@ void du_socket_main(int argc,char **argv)
     }
     tdifc = (float)(tnow.tv_sec-tcontact.tv_sec)+(float)( tnow.tv_usec-tcontact.tv_usec)/1000000.;
     if(tdifc>13.){ // no contact for 13 seconds!
+      printf("Shutting down the comms\n");
       if(DU_comms >=0){
         shutdown(DU_comms,SHUT_RDWR);
         close(DU_comms);

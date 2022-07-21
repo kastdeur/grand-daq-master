@@ -107,9 +107,10 @@ void t3_gett2()
       if((sec>(t2evts[0].sec+100))&&t2write != 0) {
         printf("T3: Error in timing, large jump; LS=%d\n",stat);
       }
-      if(idebug)printf("Received a T2 %d %u\n",stat,sec);
       prev_nsec = 0;      // needed to check if we loop over into next second
       nsub = (msg->length-5)/2;  // number of subseconds in this T2
+      if(idebug)
+        printf("Received %d T2s %d %u %d\n",nsub,stat,sec,t2write);
       for(isub=0;isub<nsub;isub++){
         t2ss = &(t2b->t2ssec[isub]);
         nsec = T2NSEC(t2ss)+(((t2ss->ADC)&0xf)<<2); //lower bits removed (not according to specs, we have 28 bits?)
@@ -149,35 +150,41 @@ void t3_gett2()
         }
       }
     }
+    //printf("After loop, t2write = %d\n",t2write);
     shm_t2.Ubuf[(*shm_t2.size)*(*shm_t2.next_read)] = 0;
     *shm_t2.next_read = (*shm_t2.next_read) + 1;
     if( *shm_t2.next_read >= *shm_t2.nbuf) *shm_t2.next_read = 0;
   }
   if(gotdata == 0) return;
-  if(idebug)printf("T3: T2write = %d\n",t2write);
+  if(idebug)
+    printf("T3: T2write = %d\n",t2write);
   for(ind=0;ind<t2write;ind++){ //clear old or used data
     if(((tp.tv_sec-t2evts[ind].insertsec)>MAXSEC) ||
        (t2evts[ind].used == 1)){
       t2evts[ind].insertsec = 0;
       t2evts[ind].sec = 0;
     }
-    if((t2evts[ind].sec>t2evts[t2write-1].sec) &&(t2evts[ind].sec-t2evts[t2write-1].sec)>MAXSEC){
-      if(idebug) printf("T3: Cleanup1 %u %u %d\n",t2evts[ind].sec,t2evts[t2write-1].sec,ind);
+    /**if((t2evts[ind].sec>t2evts[t2write-1].sec) &&(t2evts[ind].sec-t2evts[t2write-1].sec)>MAXSEC){
+      //if(idebug)
+	printf("T3: Cleanup1 %u %u %d\n",t2evts[ind].sec,t2evts[t2write-1].sec,ind);
       t2evts[ind].insertsec = 0; //get rid of GPS issues
       t2evts[ind].sec = 0; //get rid of GPS issues
-    }
+      }**/
   }
   qsort(t2evts,t2write,sizeof(T2evts),t3_compare);
   // remove old data
   ind = t2write-1;
   sec = t2evts[0].insertsec-MAXSEC;//t2evts[0] == newest!
-  if(idebug) printf("Timetest %d %d %d\n",t2evts[0].insertsec,t2evts[ind].insertsec,ind);
+  if(idebug)
+    printf("Timetest %d %d %d %d\n",
+	 sec,t2evts[0].insertsec,t2evts[ind].insertsec,ind);
   while(sec > t2evts[ind].insertsec &&ind>0) {
     ind--; //real cleanup!
   }
-  //printf(" %d\n",ind);
-  if(sec >t2evts[1].insertsec ) t2write = ind+1;
-  else t2write = ind;
+  //if(sec >t2evts[1].insertsec )
+    t2write = ind+1;
+  //else t2write = ind;
+  //printf("t2write =  %d\n",t2write);
 }
 
 
@@ -219,7 +226,8 @@ void t3_maket3()
   
   gettimeofday(&tp,&tz);
 
-  if(idebug) printf("Entering make t3 %d\n",t2write);
+  if(idebug)
+    printf("Entering make t3 %d\n",t2write);
   for(ind=(t2write-1);ind>=0;ind--){
     // 1st ensure that event is old enough, not likely for new data to appear
     insertdif = tp.tv_sec-t2evts[ind].insertsec;
@@ -258,7 +266,14 @@ void t3_maket3()
              &&(t2evts[i].unit != t2evts[ind].unit)) evnear++;
         }
       } else if(tdif>TCOINC) break;*/
-      if(tdif<=t3_time) evsize++;
+      if(tdif<=t3_time) {
+	eventindex[evsize] = i;
+	evsize++;
+	if(evsize>=MAXDU) {
+	  printf("Too many DUs in an event, loosing data %d %d %d (%d %d) %d %d\n",isten,evsize,MAXDU,tdif,ctimes[t2evts[i].unit][t2evts[ind].unit],i,ind);
+	  evsize = MAXDU-1;
+	}
+      }
       else break;
     }
     // trigger condition is easy
@@ -336,7 +351,7 @@ void t3_main()
     if(shm_t3.Ubuf[(*shm_t3.size)*(*shm_t3.next_write)] == 0 )
       t3_maket3();
     fprintf(fp_log,"T3s created: %6d\n",t3event);
-   usleep(1000);
+    usleep(1000);
   }
   fclose(fp_log);
 }

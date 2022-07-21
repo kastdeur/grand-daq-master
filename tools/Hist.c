@@ -25,6 +25,10 @@ int *filehdr=NULL;
 unsigned short *event=NULL;
 float *ttrace,*fmag,*fphase;
 int fftlen = 0;
+TProfile *HFsum[100][4]; // One for each arm
+TProfile2D *HFTime[100][4];
+int n_DU=0,DU_id[100];
+
 
 int grand_read_file_header(FILE *fp)
 {
@@ -112,7 +116,7 @@ int grand_read_event(FILE *fp)
 
 void print_du(uint16_t *du)
 {
-  int i,ic;
+  int i,ic,idu;
   int ioff;
   short value;
   short bit14;
@@ -144,9 +148,10 @@ void print_du(uint16_t *du)
   printf("\t GPS: Offset=%g LeapSec=%d Status 0x%x Alarms 0x%x Warnings 0x%x\n",
          *(float *)&du[EVT_PPS_OFFSET],du[EVT_LEAP],du[EVT_GPS_STATFLAG],
          du[EVT_GPS_CRITICAL],du[EVT_GPS_WARNING]);
-  printf("\t GPS: %02d/%02d/%04d %02d:%02d:%02d\n",
+  float fh = (du[EVT_MINHOUR]&0xff)+((du[EVT_MINHOUR]>>8)&0xff)/60.;
+  printf("\t GPS: %02d/%02d/%04d %02d:%02d:%02d (%g)\n",
          (du[EVT_DAYMONTH]>>8)&0xff,(du[EVT_DAYMONTH])&0xff,du[EVT_YEAR],
-         du[EVT_MINHOUR]&0xff,(du[EVT_MINHOUR]>>8)&0xff,du[EVT_STATSEC]&0xff);
+         du[EVT_MINHOUR]&0xff,(du[EVT_MINHOUR]>>8)&0xff,du[EVT_STATSEC]&0xff,fh);
   printf("\t GPS: Long = %g Lat = %g Alt = %g Chip Temp=%g\n",
          57.3*(*(double *)&du[EVT_LONGITUDE]),57.3*(*(double *)&du[EVT_LATITUDE]),
          *(double *)&du[EVT_ALTITUDE],*(float *)&du[EVT_GPS_TEMP]);
@@ -167,6 +172,28 @@ void print_du(uint16_t *du)
     printf("\n");
   }
   ioff = du[EVT_HDRLEN];
+  if(n_DU == 0){
+    for(ic=0;ic<4;ic++){
+      sprintf(fname,"HSF%d",ic);
+      sprintf(hname,"HSF%d",ic);
+      HFsum[0][ic] = new TProfile(fname,hname,du[EVT_TOT_SAMPLES+1]/2,0.,250);
+    }
+    n_DU = 1;
+  }
+  for(idu=1;idu<n_DU;idu++){
+    if(du[EVT_HARDWARE] == DU_id[idu]) break;
+  }
+  if(idu ==n_DU) {
+    DU_id[n_DU++] = du[EVT_HARDWARE];
+    for(ic=0;ic<4;ic++){
+      sprintf(fname,"HSF%d_%d",DU_id[idu],ic);
+      sprintf(hname,"HSF%d_%d",DU_id[idu],ic);
+      HFsum[idu][ic] = new TProfile(fname,hname,du[EVT_TOT_SAMPLES+1]/2,0.,250);
+      sprintf(fname,"HSFTime%d_%d",DU_id[idu],ic);
+      sprintf(hname,"HSFTime%d_%d",DU_id[idu],ic);
+      HFTime[idu][ic] = new TProfile2D(fname,hname,du[EVT_TOT_SAMPLES+1]/2,0.,250,240,0.,24.);
+    }
+  }
   for(ic=1;ic<=4;ic++){
     if(du[EVT_TOT_SAMPLES+ic]>0){
       if(fftlen !=du[EVT_TOT_SAMPLES+ic]){
@@ -176,8 +203,8 @@ void print_du(uint16_t *du)
         fmag = (float *)malloc(fftlen*sizeof(float));
         fphase = (float *)malloc(fftlen*sizeof(float));
       }
-      sprintf(fname,"H%dT%d",du[EVT_ID],ic);
-      sprintf(hname,"H%dT%d",du[EVT_ID],ic);
+      sprintf(fname,"H%dT%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
+      sprintf(hname,"H%dT%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
       TH1F *Hist = new TH1F(fname,hname,du[EVT_TOT_SAMPLES+ic],0.,2*du[EVT_TOT_SAMPLES+ic]);
       for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
         value =(int16_t)du[ioff++];
@@ -192,11 +219,15 @@ void print_du(uint16_t *du)
       Hist->Write();
       Hist->Delete();
       mag_and_phase(ttrace,fmag,fphase);
-      sprintf(fname,"H%dF%d",du[EVT_ID],ic);
-      sprintf(hname,"H%dF%d",du[EVT_ID],ic);
+      sprintf(fname,"H%dF%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
+      sprintf(hname,"H%dF%dD%d",du[EVT_ID],ic,du[EVT_HARDWARE]);
       Hist = new TH1F(fname,hname,fftlen/2,0.,250);
+
       for(i=0;i<fftlen/2;i++){
         Hist->SetBinContent(i+1,fmag[i]);
+        HFsum[0][ic-1]->Fill(500*(i+0.5)/fftlen,fmag[i]);
+        HFsum[idu][ic-1]->Fill(500*(i+0.5)/fftlen,fmag[i]);
+        HFTime[idu][ic-1]->Fill(500*(i+0.5)/fftlen,fh,fmag[i]);
       }
       Hist->Write();
       Hist->Delete();
@@ -251,5 +282,11 @@ int main(int argc, char **argv)
     }
   }
   if (fp != NULL) fclose(fp); // close the file
+  for(ib=0;ib<n_DU;ib++){
+    for(ich = 0;ich<4;ich++){
+      if(HFsum[ib][ich]!= NULL) HFsum[ib][ich]->Write();
+      if(HFTime[ib][ich]!= NULL) HFTime[ib][ich]->Write();
+    }
+  }
   g.Close();
 }
