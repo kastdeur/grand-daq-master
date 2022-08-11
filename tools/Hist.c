@@ -216,6 +216,22 @@ void print_du(uint16_t *du)
     for(i=0;i<6;i++)printf(" 0x%x",du[EVT_TRIGGER+6*(ic-1)+i]);
     printf("\n");
   }
+
+  // show the headers in a histogram
+  if ( 0 ) {
+	sprintf(fname,"H%dH",du[EVT_ID]);
+	sprintf(hname,"H%dH",du[EVT_ID]);
+	TH1F *Hist = new TH1F(fname,hname,du[EVT_TOT_SAMPLES],0.,2*du[EVT_TOT_SAMPLES+ic]);
+
+	for (i=0; i<du[EVT_HDRLEN]; i++){
+		Hist->SetBinContent( i, (int16_t) du[i]);
+	}
+
+	Hist->Write();
+	Hist->Delete();
+  }
+
+  // Per Channel
   ioff = du[EVT_HDRLEN];
   if(n_DU == 0){
     for(ic=0;ic<4;ic++){

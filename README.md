@@ -6,5 +6,6 @@ On Fedora the following packages are required to build tools:
 `./tools/Hist.c`:
  * `root-core`
  * `fftw-devel`
- * `tbb-devel`
- 
+
+
+To use the gui in [./gui](./gui), the python installation requires `appjar`.
