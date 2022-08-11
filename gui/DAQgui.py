@@ -4,6 +4,8 @@ from array import array
 import subprocess
 import socket
 import sys
+import os
+import time
 
 def testPulseRange(tp):
   value = app.getEntry(tp)
@@ -178,12 +180,15 @@ def send_daq(msgid):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         # Connect to server and send data
         sock.connect(("localhost", 5010))# start the GUI
-        print(msg,"\n")
+#        print(msg,"\n")
         sock.sendall(msg)
         sock.close();
 
 def press(button):
     if button == "Initialize":
+        #os.system("killall Adaq")
+        #os.system("Adaq/Adaq &")
+        #time.sleep(1)
         send_daq(402)
     elif button == "Start run":#
         send_daq(403)
@@ -235,6 +240,10 @@ def confbut(button):
         app.setEntryWidth("Data Folder",len(app.getEntry("Data Folder")))
       elif words[0] == "T3RAND":
         app.setEntry("Random",words[1])
+      elif words[0] == "T3STAT":
+        app.setEntry("Nstat",words[1])
+      elif words[0] == "T3TIME":
+        app.setEntry("Tcoin",words[1])
 #      else :
 #        print(words[0])
     fp.close()
@@ -262,6 +271,8 @@ def confbut(button):
     fp.write("EBSIZE "+str(int(app.getEntry("File Size")))+"\n")
     fp.write("EBDIR "+app.getEntry("Data Folder")+"\n")
     fp.write("T3RAND "+str(int(app.getEntry("Random")))+"\n")
+    fp.write("T3STAT "+str(int(app.getEntry("Nstat")))+"\n")
+    fp.write("T3TIME "+str(int(app.getEntry("Tcoin")))+"\n")
     fp.close();
   elif button == "Add Station":
     statlist=[]
@@ -392,21 +403,20 @@ def DUfile(button):
             for ch in range(1,5):
               if (value & 1<<(ch-1)) == 0:
                 app.setOptionBox("Channel "+str(ch),"Off")
-            if ( value & 1<<7 ) != 0:
-              idivider = value >>8
-              if idivider != 0:
-                divider = 0
-                for idiv in range (1,idivider+1):
-                  incr = 1
-                  if (idiv > 224): incr = 128
-                  elif (idiv > 192): incr = 64
-                  elif (idiv > 160): incr = 32
-                  elif (idiv > 128): incr = 16
-                  elif (idiv > 96): incr = 8
-                  elif (idiv > 64): incr = 4
-                  elif (idiv > 32): incr = 2
-                  divider += incr
-                rate = int(1000000/divider)
+            idivider = value >>8
+            if idivider != 0:
+              divider = 0
+              for idiv in range (1,idivider+1):
+                incr = 1
+                if (idiv > 224): incr = 128
+                elif (idiv > 192): incr = 64
+                elif (idiv > 160): incr = 32
+                elif (idiv > 128): incr = 16
+                elif (idiv > 96): incr = 8
+                elif (idiv > 64): incr = 4
+                elif (idiv > 32): incr = 2
+                divider += incr
+              rate = int(1000000/divider)
             app.setEntry("Test Pulse",rate)
           if address == 6:
               app.setEntry("Tover",int(words[2],0)<<1)
@@ -551,7 +561,6 @@ def DUfile(button):
           iread+=(idiv<<8)
           app.setEntry("Test Pulse",newrate)
         oldrate = newrate
-      iread +=(1<<7)
     for ch in range(1,5):
         if app.getOptionBox("Channel "+str(ch)) != "Off":
           iread+=(1<<(ch-1))
@@ -639,17 +648,17 @@ def DUfile(button):
     print("Oops")
 
 # create a GUI variable called app
-app = gui("Login Window", "500x200")
+app = gui("Login Window", "600x200")
 app.setBg("black")
 app.setFg("yellow")
 app.setFont(12)
 # add & configure widgets - widgets get a name, to help referencing them later
 app.addLabel("title", "Adaq gui")
 #app.setLabelBg("title", "red")
-
 # link the buttons to the function called press
 app.addButtons(["Initialize", "Start run","Stop run"], press)
 app.addButtons(["Configure CDAQ","Configure DU","Exit gui"], press)
+app.addEmptyMessage("EventBuilder")
 app.addLabelEntry("Username")
 app.addLabelSecretEntry("Password")
 #
@@ -660,7 +669,8 @@ app.setSize(800, 300)
 row = app.getRow()
 app.addButton("Read DAQ Configuration file",confbut,row,0)
 app.addEntry("conffile",row,1,2)
-app.setEntry("conffile","/Users/timmer/Work/GRAND/grand-daq-master/conf/Adaq.conf")
+fname = os.environ.get("GRANDDAQ_CONF","/")+"Adaq.conf"
+app.setEntry("conffile",fname)
 app.setEntryWidth("conffile",len(app.getEntry("conffile")))
 app.addButton("Write DAQ Configuration file",confbut)
 app.addLabelNumericEntry("Next Run")
@@ -668,6 +678,8 @@ app.addLabelOptionBox("Run Mode",["- Mode -","Physics","Test"])
 app.setOptionBox("Run Mode","Physics",True)
 app.addLabelNumericEntry("File Size")
 app.addLabelNumericEntry("Random")
+app.addLabelNumericEntry("Nstat")
+app.addLabelNumericEntry("Tcoin")
 app.setSticky("w")
 app.addLabelEntry("Data Folder",colspan=2)
 app.setSticky("")
@@ -688,7 +700,8 @@ app.setSize(1100, 750)
 row = 0
 app.addButton("Read DU Configuration file",DUfile,row,0)
 app.addEntry("DUconffile",row,1,2)
-app.setEntry("DUconffile","/Users/timmer/Work/GRAND/grand-daq-master/conf/DU.conf")
+fname = os.environ.get("GRANDDAQ_CONF","/")+"DU.conf"
+app.setEntry("DUconffile",fname)
 app.setEntryWidth("DUconffile",len(app.getEntry("DUconffile")))
 app.addNamedButton("Verify","VerifyCP",VerifyRanges,row,3)
 app.addNamedButton("Exit","DigitalModule",app.hideSubWindow,row,4)

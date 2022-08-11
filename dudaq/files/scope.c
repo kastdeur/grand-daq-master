@@ -232,7 +232,7 @@ int scope_fake_gps()
   ppsbuf[offset+PPS_DAYMONTH] = 100*now->tm_mday+now->tm_mon+1;
   ppsbuf[offset+PPS_MINHOUR] = 100*now->tm_min+now->tm_hour;
   ppsbuf[offset+PPS_STATSEC] = now->tm_sec;
-  //printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
+  printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
   prevgps = evgps;
   evgps++;
   if(evgps>=GPSSIZE)evgps = 0;
@@ -339,6 +339,11 @@ int scope_fake_event(int32_t ioff)
 }
 #endif
 
+int scope_t2()
+{
+  return(1);
+}
+
 int scope_read_event(int32_t ioff)
 {
   static uint16_t evtnr=0;
@@ -399,7 +404,7 @@ int scope_read_event(int32_t ioff)
     timestampbuf[next_write].ts_nanoseconds = *nanosec;
     timestampbuf[next_write].event_nr = evtbuf[offset+EVT_ID];
     timestampbuf[next_write].trigmask = evtbuf[offset+EVT_TRIG_PAT];
-    next_write+=ioff;
+    if(scope_t2() == 1) next_write+=ioff;
     if(next_write >=BUFSIZE) next_write = 0;
     *shm_ts.next_write = next_write;
     ptr_evt +=ioff;
@@ -446,6 +451,7 @@ int32_t scope_read_pps()
   }
   ctp = *(uint32_t *)&ppsbuf[offset+PPS_CTP];
   ctp = ctp&0x7fffffff;
+  printf("PPS %d %d %d %d\n",evgps,ppsbuf[offset+PPS_TRIG_RATE] ,ppsbuf[offset+PPS_MINHOUR],ppsbuf[offset+PPS_STATSEC]);
   prevgps = evgps;
   evgps++;
   if(evgps>=GPSSIZE)evgps = 0;

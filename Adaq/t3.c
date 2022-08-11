@@ -1,7 +1,7 @@
 /***
  T3 Maker
- Version:1.0
- Date: 18/2/2020
+ Version:2.0
+ Date: 27/6/2022
  Author: Charles Timmermans, Nikhef/Radboud University
  
  Altering the code without explicit consent of the author is forbidden
@@ -19,11 +19,10 @@
 #define MAXSEC 12 // has to be above 10 to avoid missing 10sec triggers!
 #define NEVT (MAXSEC*MAXDU*MAXRATE)
 #define GIGA    1000000000
-#define T3DELAY GIGA
-#define TCOINC 34000  // Maximum coincidence time window
+#define MEGA    1000000
+#define T3DELAY (2*MEGA)
+#define NNEAR 0 // station needs 2 nearest neghbours to fire (ie 3 DUs  in 1 km2)
 #define TNEAR 4900 //maximum time for nearest neighbours
-#define NTRIG 4 //total at least 4 stations
-#define NNEAR 2 // station needs 2 nearest neghbours to fire (ie 3 DUs  in 1 km2)
 
 typedef struct{
   int stat;
@@ -108,9 +107,10 @@ void t3_gett2()
       if((sec>(t2evts[0].sec+100))&&t2write != 0) {
         printf("T3: Error in timing, large jump; LS=%d\n",stat);
       }
-      if(idebug)printf("Received a T2 %d %u\n",stat,sec);
       prev_nsec = 0;      // needed to check if we loop over into next second
       nsub = (msg->length-5)/2;  // number of subseconds in this T2
+      if(idebug)
+        printf("Received %d T2s %d %u %d\n",nsub,stat,sec,t2write);
       for(isub=0;isub<nsub;isub++){
         t2ss = &(t2b->t2ssec[isub]);
         nsec = T2NSEC(t2ss)+(((t2ss->ADC)&0xf)<<2); //lower bits removed (not according to specs, we have 28 bits?)
@@ -150,35 +150,41 @@ void t3_gett2()
         }
       }
     }
+    //printf("After loop, t2write = %d\n",t2write);
     shm_t2.Ubuf[(*shm_t2.size)*(*shm_t2.next_read)] = 0;
     *shm_t2.next_read = (*shm_t2.next_read) + 1;
     if( *shm_t2.next_read >= *shm_t2.nbuf) *shm_t2.next_read = 0;
   }
   if(gotdata == 0) return;
-  if(idebug)printf("T3: T2write = %d\n",t2write);
+  if(idebug)
+    printf("T3: T2write = %d\n",t2write);
   for(ind=0;ind<t2write;ind++){ //clear old or used data
     if(((tp.tv_sec-t2evts[ind].insertsec)>MAXSEC) ||
        (t2evts[ind].used == 1)){
       t2evts[ind].insertsec = 0;
       t2evts[ind].sec = 0;
     }
-    if((t2evts[ind].sec>t2evts[t2write-1].sec) &&(t2evts[ind].sec-t2evts[t2write-1].sec)>MAXSEC){
-      if(idebug) printf("T3: Cleanup1 %u %u %d\n",t2evts[ind].sec,t2evts[t2write-1].sec,ind);
+    /**if((t2evts[ind].sec>t2evts[t2write-1].sec) &&(t2evts[ind].sec-t2evts[t2write-1].sec)>MAXSEC){
+      //if(idebug)
+	printf("T3: Cleanup1 %u %u %d\n",t2evts[ind].sec,t2evts[t2write-1].sec,ind);
       t2evts[ind].insertsec = 0; //get rid of GPS issues
       t2evts[ind].sec = 0; //get rid of GPS issues
-    }
+      }**/
   }
   qsort(t2evts,t2write,sizeof(T2evts),t3_compare);
   // remove old data
   ind = t2write-1;
   sec = t2evts[0].insertsec-MAXSEC;//t2evts[0] == newest!
-  if(idebug) printf("Timetest %d %d %d\n",t2evts[0].insertsec,t2evts[ind].insertsec,ind);
+  if(idebug)
+    printf("Timetest %d %d %d %d\n",
+	 sec,t2evts[0].insertsec,t2evts[ind].insertsec,ind);
   while(sec > t2evts[ind].insertsec &&ind>0) {
     ind--; //real cleanup!
   }
-  //printf(" %d\n",ind);
-  if(sec >t2evts[1].insertsec ) t2write = ind+1;
-  else t2write = ind;
+  //if(sec >t2evts[1].insertsec )
+    t2write = ind+1;
+  //else t2write = ind;
+  //printf("t2write =  %d\n",t2write);
 }
 
 
@@ -220,12 +226,13 @@ void t3_maket3()
   
   gettimeofday(&tp,&tz);
 
-  if(idebug) printf("Entering make t3 %d\n",t2write);
+  if(idebug)
+    printf("Entering make t3 %d\n",t2write);
   for(ind=(t2write-1);ind>=0;ind--){
     // 1st ensure that event is old enough, not likely for new data to appear
-    insertdif = tp.tv_sec-t2evts[ind].sec;
+    insertdif = tp.tv_sec-t2evts[ind].insertsec;
     if(insertdif < 2 ){ //2 or more is clearly ok!
-      insertdif = GIGA*(insertdif) + (t2evts[0].nsec-t2evts[ind].nsec);
+      insertdif = MEGA*(insertdif) + (tp.tv_usec-t2evts[ind].insertmusec);
     } else insertdif = T3DELAY+1;
     if(insertdif< T3DELAY) break;
     // if event is used, do not use it again
@@ -238,7 +245,8 @@ void t3_maket3()
     else isten = 0;
     if(t2evts[ind].trigflag&0x8) israndom = 1;
     else israndom = 0;
-    if(isten == 1) printf("A 10 sec trigger %d\n",t2evts[ind].sec);
+    if(isten == 1) printf("A 10 sec trigger %u\n",t2evts[ind].sec);
+    //if(israndom == 1) printf("A Random trigger %u\n",t2evts[ind].sec);
     for(i=ind-1;i>=0;i--){
       if(t2evts[i].sec-t2evts[ind].sec > 1) tdif = TCOINC+1;
       else if(t2evts[i].sec-t2evts[ind].sec == 1){
@@ -246,7 +254,7 @@ void t3_maket3()
       }else{
         tdif = t2evts[i].nsec-t2evts[ind].nsec;
       }
-      if(tdif <= ctimes[t2evts[i].unit][t2evts[ind].unit]) {
+      /*if(tdif <= ctimes[t2evts[i].unit][t2evts[ind].unit]) { // later when we have a field
         if ((isten && (t2evts[i].trigflag&0x4)) || (isten==0 &&(t2evts[i].trigflag&0x4))==0){
           eventindex[evsize] = i;
           evsize++;
@@ -257,10 +265,20 @@ void t3_maket3()
           if((ctimes[t2evts[i].unit][t2evts[ind].unit]<=TNEAR)
              &&(t2evts[i].unit != t2evts[ind].unit)) evnear++;
         }
-      } else if(tdif>TCOINC) break;
+      } else if(tdif>TCOINC) break;*/
+      if(tdif<=t3_time) {
+	eventindex[evsize] = i;
+	evsize++;
+	if(evsize>=MAXDU) {
+	  printf("Too many DUs in an event, loosing data %d %d %d (%d %d) %d %d\n",isten,evsize,MAXDU,tdif,ctimes[t2evts[i].unit][t2evts[ind].unit],i,ind);
+	  evsize = MAXDU-1;
+	}
+      }
+      else break;
     }
     // trigger condition is easy
-    if((evsize>=NTRIG &&evnear>=NNEAR) || isten == 1 || israndom == 1) {
+    //if((evsize>=NTRIG &&evnear>=NNEAR) || isten == 1 || israndom == 1) {
+    if(evsize>=t3_stat || isten == 1 || israndom == 1) {
       if(isten == 1) printf("Found a T10 with %d stations T=%u\n",evsize,t2evts[ind].sec);
       //start creating the list to send
       t3list[0] = 3; // length before adding a station
@@ -300,7 +318,7 @@ void t3_initialize()
 {
   int i,j;
   int Narray = sqrt(MAXDU);
-  
+
   for(i=0;i<MAXDU;i++){
     statlist[i] = 5100+i; //for now all hardcoded dummies
     posx[i] = 1000*(i%Narray);
@@ -320,10 +338,20 @@ void t3_initialize()
  */
 void t3_main()
 {
+  char fname[100];
+  FILE *fp_log;
+  
+  sprintf(fname,"%s/t3",LOG_FOLDER);
+  fp_log = fopen(fname,"w");
   t3_initialize();
   while(1) {
+    fseek(fp_log,0,SEEK_SET);
     t3_gett2();
-    if(shm_t3.Ubuf[(*shm_t3.size)*(*shm_t3.next_write)] == 0 ) t3_maket3();
-    usleep(100000);
+    fprintf(fp_log,"T2s in memory: %6d\n",t2write);
+    if(shm_t3.Ubuf[(*shm_t3.size)*(*shm_t3.next_write)] == 0 )
+      t3_maket3();
+    fprintf(fp_log,"T3s created: %6d\n",t3event);
+    usleep(1000);
   }
+  fclose(fp_log);
 }

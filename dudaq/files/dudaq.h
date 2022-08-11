@@ -5,7 +5,7 @@
 #include<sys/time.h>
 
 #define MAX_INP_MSG 20000 //!< maximum size (in shorts) of the input data (should be big enough for the configuation data)
-#define MAX_OUT_MSG 50000 //!< maximum size (in shorts) of the output data (should be big enough for the T2 data/ a complete event)
+#define MAX_OUT_MSG 80000 //!< maximum size (in shorts) of the output data (should be big enough for the T2 data/ a complete event)
 #define MAX_T2 1000 //! max size for T2's, corresponds to the Adaq
 
 #ifdef Fake

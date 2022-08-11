@@ -27,17 +27,22 @@ typedef struct{
   socklen_t DUalength;
 }DUInfo;
 
-#define NT2BUF (8*MAXDU) //8 per DU
+#define NT2BUF (30*MAXDU) //30 per DU
 #define T2SIZE 1000 //Max. size (in shorts) for T2 info in 1 message 
 
 #define NT3BUF 500 // max 500 T3 buffers (small messages anyway)
 #define T3SIZE (6+3*MAXDU) //Max. size (in shorts) for T3 info in 1 message
 
 #define NEVBUF 10 // maximal 10 event buffers
-#define EVSIZE 40000 //Max. size (in shorts) for evsize for each DU
+#define EVSIZE 80000 //Max. size (in shorts) for evsize for each DU
 
 #define CMDBUF 20 // leave 20 command buffers
 #define CMDSIZE 5000 //Max. size (in shorts) for command (should be able to hold config file)
+#define LOG_FOLDER "/tmp/daq"
+
+#define TCOINC 2000  // Maximum coincidence time window
+#define NTRIG 2 //total at least 2 stations
+
 
 #ifdef _MAINDAQ
 DUInfo DUinfo[MAXDU];
@@ -53,6 +58,8 @@ int eb_max_evts = 10;
 char eb_dir[80];
 //T3 parameters
 int t3_rand = 0; 
+int t3_stat = NTRIG;
+int t3_time = TCOINC;
 #else
 extern DUInfo DUinfo[MAXDU];
 extern int tot_du;
@@ -65,4 +72,6 @@ extern int eb_run_mode;
 extern int eb_max_evts ;
 extern char eb_dir[80]; 
 extern int t3_rand;
+extern int t3_stat;
+extern int t3_time;
 #endif

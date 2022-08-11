@@ -1,7 +1,7 @@
 /***
  Event Builder
- Version:1.0
- Date: 18/2/2020
+ Version:2.0
+ Date: 28/6/2022
  Author: Charles Timmermans, Nikhef/Radboud University
  
  Altering the code without explicit consent of the author is forbidden
@@ -34,6 +34,10 @@ int i_DUbuffer = 0;
 
 int eb_sub = 1; //file subnumber
 int eb_event = 0;
+
+int isub;
+static int write_sub[3]={0,0,0};
+
 
 FILEHDR eb_fhdr;
 FILE *fpout = NULL,*fpten=NULL,*fpmon=NULL,*fpmb=NULL;
@@ -224,8 +228,11 @@ void eb_getdata(){
     //printf("EB getdata: loop over input. TAG = %d\n",msg->tag);
     if(msg->tag == DU_EVENT){
       DUinfo = (uint16_t *)msg->body;
-      if(i_DUbuffer < NDU) memcpy((void *)&DUbuffer[i_DUbuffer],(void *)DUinfo,2*DUinfo[EVT_LENGTH]);
-      if(running ==1) i_DUbuffer +=1;
+      printf("Trying to copy event of length %d (max is %d)\n",DUinfo[EVT_LENGTH],EVSIZE);
+      if(DUinfo[EVT_LENGTH] < EVSIZE){
+	if(i_DUbuffer < NDU) memcpy((void *)&DUbuffer[i_DUbuffer],(void *)DUinfo,2*DUinfo[EVT_LENGTH]);
+	if(running ==1) i_DUbuffer +=1;
+      }
     } else if(msg->tag == DU_MONITOR){
       if(fpmon != NULL){
         memcpy(&firmware,&msg->body[1],4);
@@ -242,7 +249,7 @@ void eb_getdata(){
     *shm_eb.next_read = (*shm_eb.next_read) + 1;
     if( *shm_eb.next_read >= *shm_eb.nbuf) *shm_eb.next_read = 0;
   }
-  if(i_DUbuffer > NDU) i_DUbuffer = NDU;
+  if(i_DUbuffer >= NDU) i_DUbuffer = NDU-1;
   if(i_DUbuffer>0 && inew == 1) {
     qsort(DUbuffer[0],i_DUbuffer,2*EVSIZE,eb_DUcompare);
   }
@@ -298,11 +305,18 @@ void eb_write_events(){
       if(fpout == NULL) {
         eb_open(&evhdr);
         n_written = 0;
+        for(isub=0;isub<3;isub++) write_sub[isub] = 0;
       }
-      if((evhdr.type &TRIGGER_T3_MINBIAS) != 0) // untriggered
+      isub = 0;
+      if((evhdr.type &TRIGGER_T3_MINBIAS) != 0){ // untriggered
         fp = fpten;
+        isub = 1;
+      }
       else{
-        if((evhdr.type& TRIGGER_T3_RANDOM) != 0) fp=fpmb; //single station triggered
+        if((evhdr.type& TRIGGER_T3_RANDOM) != 0) {
+          fp=fpmb; //single station triggered
+          isub = 2;
+        }
         else fp = fpout;
       }
       fwrite(&evhdr,1,44,fp);
@@ -312,6 +326,7 @@ void eb_write_events(){
         *(uint32_t *)&DUn[EVT_SECOND] = 0;
       }// that is it, start a new event
       n_written++;
+      write_sub[isub]++;
       if(n_written >=eb_max_evts) eb_close();
       eb_event++;
       DUinfo = (uint16_t *)DUbuffer[i];
@@ -343,12 +358,23 @@ void eb_write_events(){
  */
 void eb_main()
 {
+  char fname[100];
+  FILE *fp_log;
+  
+  sprintf(fname,"%s/eb",LOG_FOLDER);
+  fp_log = fopen(fname,"w");
   printf("Starting EB\n");
   while(1) {
+    fseek(fp_log,0,SEEK_SET);
     eb_getui();
     eb_gett3();
     eb_getdata();
     if(running == 1) eb_write_events();
+    fprintf(fp_log,"To Disk: Run %6d, file %4d\n",eb_run,eb_sub);
+    fprintf(fp_log,"AD events: %5d\n",write_sub[0]);
+    fprintf(fp_log,"MD events: %5d\n",write_sub[2]);
+    fprintf(fp_log,"TD events: %5d\n",write_sub[1]);
     usleep(1000);
   }
+  fclose(fp_log);
 }

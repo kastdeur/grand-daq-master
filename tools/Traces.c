@@ -99,7 +99,10 @@ void print_du(uint16_t *du)
 {
   int i,ic;
   int ioff;
-  
+  short value;
+  short bit14;
+  int mask;
+
   printf("\t T3 ID = %u\n",du[EVT_ID]);
   printf("\t DU ID = %u\n",du[EVT_HARDWARE]);
   printf("\t DU time = %u.%09u\n",*(uint32_t *)&du[EVT_SECOND],
@@ -128,7 +131,7 @@ void print_du(uint16_t *du)
   printf("\t GPS: %02d/%02d/%04d %02d:%02d:%02d\n",
          (du[EVT_DAYMONTH]>>8)&0xff,(du[EVT_DAYMONTH])&0xff,du[EVT_YEAR],
          du[EVT_MINHOUR]&0xff,(du[EVT_MINHOUR]>>8)&0xff,du[EVT_STATSEC]&0xff);
-  printf("\t GPS: Long = %g Lat = %g Alt = %g Chip Temp=%g\n",
+  printf("\t GPS: Long = %9.7f Lat = %9.7f Alt = %g Chip Temp=%g\n",
          57.3*(*(double *)&du[EVT_LONGITUDE]),57.3*(*(double *)&du[EVT_LATITUDE]),
          *(double *)&du[EVT_ALTITUDE],*(float *)&du[EVT_GPS_TEMP]);
   printf("\t Digi CTRL");
@@ -151,7 +154,13 @@ void print_du(uint16_t *du)
   for(ic=1;ic<=4;ic++){
     printf("\t ADC %d:\n\t",ic);
     for(i=0;i<du[EVT_TOT_SAMPLES+ic];i++){
-      printf(" %5d",(int16_t)du[ioff++]);
+      value =(int16_t)du[ioff++];
+      bit14 = (value & ( 1 << 13 )) >> 13;
+      mask = 1 << 14; // --- bit 15
+      value = (value & (~mask)) | (bit14 << 14);
+      mask = 1 << 15; // --- bit 16
+      value = (value & (~mask)) | (bit14 << 15);
+      printf(" %5d",(int16_t)value);
       if((i%12) ==11) printf("\n\t");
     }
     printf("\n");
